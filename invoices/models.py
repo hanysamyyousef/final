@@ -123,252 +123,178 @@ class Invoice(models.Model):
         """إنشاء المعاملات المالية والمخزنية المرتبطة بالفاتورة عند ترحيلها"""
         # استيراد النماذج هنا لتجنب التبعيات الدائرية
         from finances.models import ContactTransaction, SafeTransaction, ProductTransaction
+        from accounting.models import JournalEntry, JournalItem, Account
 
         print(f"=== بدء إنشاء المعاملات المالية والمخزنية للفاتورة رقم {self.number} ===")
-        print(f"نوع الفاتورة: {self.invoice_type}")
-        print(f"نوع الدفع: {self.payment_type}")
-        print(f"المبلغ الصافي: {self.net_amount}")
-        print(f"المبلغ المدفوع: {self.paid_amount}")
-        print(f"المبلغ المتبقي: {self.remaining_amount}")
-
-        # إنشاء حركة حساب العميل/المورد للفاتورة
-        # في حالة الفاتورة النقدية أو الفاتورة الآجلة مع دفعة جزئية، نقوم بإنشاء حركتين: واحدة للفاتورة وواحدة للدفع
-
-        # 1. حركة الفاتورة
-        invoice_amount = self.net_amount
-
-        # تحديد ما إذا كان هناك مبلغ مدفوع يجب معالجته
-        has_payment = self.paid_amount > 0
-        payment_amount = self.paid_amount
-
-        # تعديل المبلغ في حالة الفاتورة النقدية (لن يؤثر على رصيد العميل)
-        if self.payment_type == self.CASH:
-            if self.invoice_type in [self.SALE, self.PURCHASE_RETURN]:
-                # في حالة فاتورة البيع النقدية أو مرتجع الشراء النقدي، لا نضيف للعميل
-                invoice_amount = 0
-            elif self.invoice_type in [self.PURCHASE, self.SALE_RETURN]:
-                # في حالة فاتورة الشراء النقدية أو مرتجع البيع النقدي، لا نضيف للمورد
-                invoice_amount = 0
-
-        # إنشاء حركة حساب العميل/المورد للفاتورة
-        current_balance = self.contact.current_balance
-        balance_after = current_balance
-
-        # حساب الرصيد بعد العملية بناءً على نوع جهة الاتصال ونوع الفاتورة
-        if self.contact.contact_type == Contact.CUSTOMER:
-            # العمليات المتعلقة بالعملاء
-            if self.invoice_type == self.SALE:
-                # فاتورة بيع تزيد مديونية العميل
-                balance_after = current_balance + invoice_amount
-            elif self.invoice_type == self.SALE_RETURN:
-                # مرتجع بيع ينقص مديونية العميل
-                balance_after = current_balance - invoice_amount
-            else:
-                # أي عملية أخرى لا تؤثر على الرصيد
-                balance_after = current_balance
-        else:
-            # العمليات المتعلقة بالموردين
-            if self.invoice_type == self.PURCHASE:
-                # فاتورة شراء تزيد الالتزام تجاه المورد
-                balance_after = current_balance + invoice_amount
-            elif self.invoice_type == self.PURCHASE_RETURN:
-                # مرتجع شراء ينقص الالتزام تجاه المورد
-                balance_after = current_balance - invoice_amount
-            else:
-                # أي عملية أخرى لا تؤثر على الرصيد
-                balance_after = current_balance
-
-        contact_transaction = ContactTransaction(
-            contact=self.contact,
-            date=self.date,  # استخدام تاريخ الفاتورة
-            amount=invoice_amount,
-            invoice=self,
-            description=f"معاملة مالية للفاتورة {self.number}",
-            reference_number=self.number,
-            balance_before=current_balance,  # تعيين الرصيد قبل العملية
-            balance_after=balance_after  # تعيين الرصيد بعد العملية
+        
+        # إنشاء قيد محاسبي تلقائي
+        journal_entry = JournalEntry.objects.create(
+            entry_number=f"INV-{self.number}-{timezone.now().strftime('%Y%m%d%H%M%S')}",
+            date=self.date,
+            description=f"قيد تلقائي للفاتورة رقم {self.number} - {self.get_invoice_type_display()}",
+            reference=self.number
         )
 
-        # تعيين نوع العملية بناءً على نوع الفاتورة
+        # منطق القيود المحاسبية بناءً على نوع الفاتورة
+        # ملاحظة: هذا تبسيط للعملية المحاسبية، يجب تخصيصه حسب شجرة الحسابات الفعلية
+        
+        # 1. حساب المبيعات/المشتريات (استخدام الإعدادات)
+        from core.models import SystemSettings
+        settings = SystemSettings.get_settings()
+        
+        contact_account = self.contact.account
+        safe_account = self.safe.account if self.safe else None
+
         if self.invoice_type == self.SALE:
-            contact_transaction.transaction_type = ContactTransaction.SALE_INVOICE
+            # 1. من حساب العميل (مدين) بكامل قيمة الفاتورة
+            if contact_account:
+                JournalItem.objects.create(
+                    journal_entry=journal_entry,
+                    account=contact_account,
+                    debit=self.net_amount,
+                    memo=f"مديونية فاتورة مبيعات {self.number}"
+                )
+            
+            # 2. إلى حساب المبيعات (دائن) بقيمة الفاتورة قبل الضريبة
+            sales_acc = settings.sales_account
+            if sales_acc:
+                JournalItem.objects.create(
+                    journal_entry=journal_entry,
+                    account=sales_acc,
+                    credit=self.total_amount - self.discount_amount,
+                    memo=f"مبيعات فاتورة {self.number}"
+                )
+
+            # 3. إلى حساب ضريبة القيمة المضافة - مخرجات (دائن)
+            if self.tax_amount > 0:
+                vat_out_acc = settings.vat_output_account
+                if vat_out_acc:
+                    JournalItem.objects.create(
+                        journal_entry=journal_entry,
+                        account=vat_out_acc,
+                        credit=self.tax_amount,
+                        vat_rate=settings.vat_percentage,
+                        vat_amount=self.tax_amount,
+                        memo=f"ضريبة مخرجات فاتورة {self.number}"
+                    )
+
+            # 4. تكلفة المبيعات والمخزون (الجرد المستمر)
+            total_cost = 0
+            for item in self.items.all():
+                unit_cost = item.product_unit.purchase_price or 0
+                total_cost += item.quantity * unit_cost
+
+            if total_cost > 0:
+                cogs_acc = settings.cogs_account
+                inventory_acc = self.store.account
+                
+                if cogs_acc and inventory_acc:
+                    JournalItem.objects.create(
+                        journal_entry=journal_entry,
+                        account=cogs_acc,
+                        debit=total_cost,
+                        memo=f"تكلفة بضاعة مباعة فاتورة {self.number}"
+                    )
+                    JournalItem.objects.create(
+                        journal_entry=journal_entry,
+                        account=inventory_acc,
+                        credit=total_cost,
+                        memo=f"صرف مخزني فاتورة {self.number}"
+                    )
+            
+            # 5. في حالة الدفع النقدي (قيد التحصيل)
+            if self.payment_type == self.CASH and safe_account:
+                JournalItem.objects.create(
+                    journal_entry=journal_entry,
+                    account=safe_account,
+                    debit=self.net_amount,
+                    memo=f"تحصيل نقدي فاتورة {self.number}"
+                )
+                if contact_account:
+                    JournalItem.objects.create(
+                        journal_entry=journal_entry,
+                        account=contact_account,
+                        credit=self.net_amount,
+                        memo=f"سداد نقدي فاتورة {self.number}"
+                    )
+        
         elif self.invoice_type == self.PURCHASE:
-            contact_transaction.transaction_type = ContactTransaction.PURCHASE_INVOICE
-        elif self.invoice_type == self.SALE_RETURN:
-            contact_transaction.transaction_type = ContactTransaction.SALE_RETURN_INVOICE
-        elif self.invoice_type == self.PURCHASE_RETURN:
-            contact_transaction.transaction_type = ContactTransaction.PURCHASE_RETURN_INVOICE
-
-        # إنشاء حركة الخزنة وحركة حساب العميل/المورد للدفع (سواء كانت فاتورة نقدية أو آجلة مع دفعة جزئية)
-        if (self.payment_type == self.CASH or self.paid_amount > 0) and self.safe:
-            # 1. حركة الخزنة للفاتورة
-            current_balance = self.safe.current_balance
-            balance_after = current_balance
-
-            # تحديد المبلغ المدفوع
-            payment_amount = self.net_amount if self.payment_type == self.CASH else self.paid_amount
-
-            # حساب الرصيد بعد العملية بناءً على نوع الفاتورة
-            if self.invoice_type == self.SALE:
-                # فاتورة بيع تزيد رصيد الخزنة
-                balance_after = current_balance + payment_amount
-            elif self.invoice_type == self.PURCHASE:
-                # فاتورة شراء تنقص رصيد الخزنة
-                balance_after = current_balance - payment_amount
-            elif self.invoice_type == self.SALE_RETURN:
-                # مرتجع بيع ينقص رصيد الخزنة
-                balance_after = current_balance - payment_amount
-            elif self.invoice_type == self.PURCHASE_RETURN:
-                # مرتجع شراء يزيد رصيد الخزنة
-                balance_after = current_balance + payment_amount
-
-            safe_transaction = SafeTransaction(
-                safe=self.safe,
-                date=self.date,  # استخدام تاريخ الفاتورة
-                amount=payment_amount,
-                invoice=self,
-                contact=self.contact,
-                description=f"معاملة نقدية للفاتورة {self.number}",
-                reference_number=self.number,
-                balance_before=current_balance,  # تعيين الرصيد قبل العملية
-                balance_after=balance_after  # تعيين الرصيد بعد العملية
-            )
-
-            # تعيين نوع العملية بناءً على نوع الفاتورة
-            if self.invoice_type == self.SALE:
-                safe_transaction.transaction_type = SafeTransaction.SALE_INVOICE
-            elif self.invoice_type == self.PURCHASE:
-                safe_transaction.transaction_type = SafeTransaction.PURCHASE_INVOICE
-            elif self.invoice_type == self.SALE_RETURN:
-                safe_transaction.transaction_type = SafeTransaction.SALE_RETURN_INVOICE
-            elif self.invoice_type == self.PURCHASE_RETURN:
-                safe_transaction.transaction_type = SafeTransaction.PURCHASE_RETURN_INVOICE
-
-            safe_transaction.save()
-            print(f"تم إنشاء حركة خزنة بمبلغ {payment_amount} للفاتورة {self.number}")
-
-            # 2. إنشاء حركة حساب العميل/المورد للدفع النقدي أو الجزئي
-            if self.invoice_type in [self.SALE, self.PURCHASE_RETURN]:
-                # في حالة فاتورة البيع أو مرتجع الشراء، نضيف تحصيل من العميل
-                current_balance = self.contact.current_balance
-                # تحصيل من العميل ينقص مديونيته
-                balance_after = current_balance - payment_amount
-
-                payment_transaction = ContactTransaction(
-                    contact=self.contact,
-                    date=self.date,  # استخدام تاريخ الفاتورة
-                    amount=-payment_amount,  # تخفيض رصيد العميل (دائن)
-                    invoice=self,
-                    description=f"تحصيل نقدي للفاتورة {self.number}",
-                    transaction_type=ContactTransaction.COLLECTION,
-                    reference_number=self.number,
-                    balance_before=current_balance,  # تعيين الرصيد قبل العملية
-                    balance_after=balance_after  # تعيين الرصيد بعد العملية
-                )
-                payment_transaction.save()
-                print(f"تم إنشاء حركة تحصيل من العميل بمبلغ {payment_amount} للفاتورة {self.number}")
-            elif self.invoice_type in [self.PURCHASE, self.SALE_RETURN]:
-                # في حالة فاتورة الشراء أو مرتجع البيع، نضيف دفع للمورد
-                current_balance = self.contact.current_balance
-                # دفع للمورد ينقص الالتزام تجاهه
-                balance_after = current_balance - payment_amount
-
-                payment_transaction = ContactTransaction(
-                    contact=self.contact,
-                    date=self.date,  # استخدام تاريخ الفاتورة
-                    amount=-payment_amount,  # تخفيض رصيد المورد (دائن)
-                    invoice=self,
-                    description=f"دفع نقدي للفاتورة {self.number}",
-                    transaction_type=ContactTransaction.PAYMENT,
-                    reference_number=self.number,
-                    balance_before=current_balance,  # تعيين الرصيد قبل العملية
-                    balance_after=balance_after  # تعيين الرصيد بعد العملية
-                )
-                payment_transaction.save()
-                print(f"تم إنشاء حركة دفع للمورد بمبلغ {payment_amount} للفاتورة {self.number}")
-
-        # تُحفظ معاملة جهة الاتصال للفاتورة
-        contact_transaction.save()
-
-        # إنشاء حركات المنتجات
-        print(f"=== بدء إنشاء حركات المنتجات للفاتورة {self.number} ===")
-        items = self.items.all()
-        print(f"عدد بنود الفاتورة: {items.count()}")
-
-        for item in items:
-            print(f"معالجة بند الفاتورة: المنتج {item.product.name}, الكمية {item.quantity}, الوحدة {item.product_unit.unit.name}")
-
-            # الحصول على الرصيد الحالي للمنتج
-            if hasattr(item.product, 'current_balance'):
-                current_balance = item.product.current_balance
-            else:
-                current_balance = item.product.initial_balance
-                setattr(item.product, 'current_balance', current_balance)
-
-            print(f"الرصيد الحالي للمنتج {item.product.name}: {current_balance}")
-
-            # تحويل الكمية إلى الوحدة الأساسية
-            base_quantity = item.quantity * item.product_unit.conversion_factor
-            print(f"الكمية بالوحدة الأساسية: {base_quantity} (معامل التحويل: {item.product_unit.conversion_factor})")
-
-            # حساب الرصيد بعد العملية بناءً على نوع الفاتورة
-            balance_after = current_balance
-            if self.invoice_type in [self.SALE, self.SALE_RETURN]:
-                # عمليات تنقص المخزون
-                balance_after = current_balance - base_quantity
-                print(f"نوع الفاتورة {self.invoice_type} ينقص المخزون")
-            else:
-                # عمليات تزيد المخزون
-                balance_after = current_balance + base_quantity
-                print(f"نوع الفاتورة {self.invoice_type} يزيد المخزون")
-
-            print(f"الرصيد بعد العملية: {balance_after}")
-
-            try:
-                product_transaction = ProductTransaction(
-                    product=item.product,
-                    date=self.date,  # استخدام تاريخ الفاتورة
-                    quantity=item.quantity,
-                    product_unit=item.product_unit,
-                    base_quantity=base_quantity,  # إضافة الكمية بالوحدة الأساسية
-                    invoice=self,
-                    store=self.store,  # إضافة المخزن
-                    description=f"حركة مخزنية من الفاتورة {self.number}",
-                    reference_number=self.number,
-                    balance_before=current_balance,  # تعيين الرصيد قبل العملية
-                    balance_after=balance_after  # تعيين الرصيد بعد العملية
+            # 1. من حساب المشتريات (مدين) بقيمة الفاتورة قبل الضريبة
+            purch_acc = settings.purchases_account
+            if purch_acc:
+                JournalItem.objects.create(
+                    journal_entry=journal_entry,
+                    account=purch_acc,
+                    debit=self.total_amount - self.discount_amount,
+                    memo=f"مشتريات فاتورة {self.number}"
                 )
 
-                # تعيين نوع العملية بناءً على نوع الفاتورة
-                if self.invoice_type == self.SALE:
-                    product_transaction.transaction_type = ProductTransaction.SALE
-                elif self.invoice_type == self.PURCHASE:
-                    product_transaction.transaction_type = ProductTransaction.PURCHASE
-                elif self.invoice_type == self.SALE_RETURN:
-                    product_transaction.transaction_type = ProductTransaction.SALE_RETURN
-                elif self.invoice_type == self.PURCHASE_RETURN:
-                    product_transaction.transaction_type = ProductTransaction.PURCHASE_RETURN
+            # 2. من حساب ضريبة القيمة المضافة - مدخلات (مدين)
+            if self.tax_amount > 0:
+                vat_in_acc = settings.vat_input_account
+                if vat_in_acc:
+                    JournalItem.objects.create(
+                        journal_entry=journal_entry,
+                        account=vat_in_acc,
+                        debit=self.tax_amount,
+                        vat_rate=settings.vat_percentage,
+                        vat_amount=self.tax_amount,
+                        memo=f"ضريبة مدخلات فاتورة {self.number}"
+                    )
 
-                print(f"نوع حركة المنتج: {product_transaction.transaction_type}")
+            # 3. إلى حساب المورد (دائن) بكامل القيمة
+            if contact_account:
+                JournalItem.objects.create(
+                    journal_entry=journal_entry,
+                    account=contact_account,
+                    credit=self.net_amount,
+                    memo=f"التزام فاتورة مشتريات {self.number}"
+                )
+            
+            # 4. تحديث المخزون (الجرد المستمر)
+            inventory_acc = self.store.account
+            if inventory_acc:
+                # في حالة الشراء، تزيد قيمة المخزون
+                JournalItem.objects.create(
+                    journal_entry=journal_entry,
+                    account=inventory_acc,
+                    debit=self.total_amount - self.discount_amount,
+                    memo=f"إضافة مخزنية فاتورة {self.number}"
+                )
+                # تخفيض حساب المشتريات (لأنه تم تحويله للمخزون)
+                if purch_acc:
+                    JournalItem.objects.create(
+                        journal_entry=journal_entry,
+                        account=purch_acc,
+                        credit=self.total_amount - self.discount_amount,
+                        memo=f"تسوية مشتريات إلى مخزون فاتورة {self.number}"
+                    )
 
-                product_transaction.save()
-                print(f"تم حفظ حركة المنتج بنجاح (ID: {product_transaction.id})")
-            except Exception as e:
-                print(f"خطأ في إنشاء حركة المنتج: {str(e)}")
-                import traceback
-                print(f"تتبع الخطأ: {traceback.format_exc()}")
-                raise
+            # 5. في حالة الدفع النقدي
+            if self.payment_type == self.CASH and safe_account:
+                # من حساب المورد (مدين) إلى حساب الخزنة (دائن)
+                if contact_account:
+                    JournalItem.objects.create(
+                        journal_entry=journal_entry,
+                        account=contact_account,
+                        debit=self.net_amount,
+                        memo=f"سداد نقدي فاتورة {self.number}"
+                    )
+                JournalItem.objects.create(
+                    journal_entry=journal_entry,
+                    account=safe_account,
+                    credit=self.net_amount,
+                    memo=f"دفع نقدي فاتورة {self.number}"
+                )
 
-        # طباعة معلومات عن المعاملات التي تم إنشاؤها
-        from finances.models import ContactTransaction, SafeTransaction, ProductTransaction
-        contact_transactions = ContactTransaction.objects.filter(invoice=self)
-        safe_transactions = SafeTransaction.objects.filter(invoice=self)
-        product_transactions = ProductTransaction.objects.filter(invoice=self)
+        # ترحيل القيد إذا كان متوازناً
+        try:
+            journal_entry.post()
+            print(f"تم إنشاء وترحيل القيد المحاسبي رقم {journal_entry.entry_number}")
+        except Exception as e:
+            print(f"فشل ترحيل القيد التلقائي: {str(e)}")
+            # في بيئة الإنتاج قد نرغب في عدم ترحيله وترك المراجعة للمحاسب
 
-        print(f"=== تم إنشاء المعاملات المالية والمخزنية للفاتورة رقم {self.number} ===")
-        print(f"عدد معاملات العملاء/الموردين: {contact_transactions.count()}")
-        print(f"عدد معاملات الخزنة: {safe_transactions.count()}")
-        print(f"عدد معاملات المخزون: {product_transactions.count()}")
 
     def post_invoice(self):
         """ترحيل الفاتورة وإنشاء المعاملات المالية والمخزنية"""
@@ -536,11 +462,25 @@ class InvoiceItem(models.Model):
         return f"{self.product.name} - {self.invoice.number}"
 
     def save(self, *args, **kwargs):
+        # جلب إعدادات النظام للحصول على نسبة الضريبة الافتراضية
+        from core.models import SystemSettings
+        settings = SystemSettings.get_settings()
+        
+        # إذا كانت نسبة الضريبة 0، نستخدم النسبة من إعدادات النظام
+        if self.tax_percentage == 0 and settings.vat_percentage > 0:
+            self.tax_percentage = settings.vat_percentage
+
         self.total_price = self.quantity * self.unit_price
         self.discount_amount = self.total_price * (self.discount_percentage / 100)
         self.tax_amount = (self.total_price - self.discount_amount) * (self.tax_percentage / 100)
         self.net_price = self.total_price - self.discount_amount + self.tax_amount
+        
         super().save(*args, **kwargs)
+        
+        # تحديث إجماليات الفاتورة بعد حفظ البند
+        if self.invoice:
+            self.invoice.calculate_totals()
+            self.invoice.save()
 
 class Payment(models.Model):
     """نموذج تحصيلات ومدفوعات العملاء والموردين"""
@@ -597,6 +537,7 @@ class Payment(models.Model):
     def create_related_transactions(self):
         """إنشاء المعاملات المالية المرتبطة بالدفعة"""
         from finances.models import ContactTransaction, SafeTransaction
+        from accounting.models import JournalEntry, JournalItem
 
         # تحديد نوع المعاملة في الخزنة
         transaction_type = None
@@ -619,7 +560,57 @@ class Payment(models.Model):
         if self.invoice:
             description += f" - الفاتورة رقم {self.invoice.number}"
 
-        # 1. إنشاء معاملة خزنة
+        # 1. إنشاء قيد محاسبي تلقائي
+        journal_entry = JournalEntry.objects.create(
+            entry_number=f"PAY-{self.number}-{timezone.now().strftime('%Y%m%d%H%M%S')}",
+            date=self.date,
+            description=f"قيد تلقائي لسند {self.get_payment_type_display()} رقم {self.number}",
+            reference=self.number
+        )
+
+        contact_account = self.contact.account
+        safe_account = self.safe.account
+
+        if self.payment_type == self.RECEIPT:
+            # من حساب الخزنة (مدين) إلى حساب العميل (دائن)
+            if safe_account:
+                JournalItem.objects.create(
+                    journal_entry=journal_entry,
+                    account=safe_account,
+                    debit=self.amount,
+                    memo=description
+                )
+            if contact_account:
+                JournalItem.objects.create(
+                    journal_entry=journal_entry,
+                    account=contact_account,
+                    credit=self.amount,
+                    memo=description
+                )
+        else:  # PAYMENT
+            # من حساب المورد (مدين) إلى حساب الخزنة (دائن)
+            if contact_account:
+                JournalItem.objects.create(
+                    journal_entry=journal_entry,
+                    account=contact_account,
+                    debit=self.amount,
+                    memo=description
+                )
+            if safe_account:
+                JournalItem.objects.create(
+                    journal_entry=journal_entry,
+                    account=safe_account,
+                    credit=self.amount,
+                    memo=description
+                )
+
+        # ترحيل القيد
+        try:
+            journal_entry.post()
+        except Exception as e:
+            print(f"فشل ترحيل قيد السند: {str(e)}")
+
+        # 2. إنشاء معاملة خزنة
         current_balance = self.safe.current_balance
 
         # تحديد تأثير العملية على رصيد الخزنة

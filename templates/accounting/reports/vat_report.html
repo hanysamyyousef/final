@@ -1,0 +1,95 @@
+{% extends "base/base.html" %}
+{% load i18n %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="card shadow mb-4">
+        <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+            <h6 class="m-0 font-weight-bold text-primary">{{ title }}</h6>
+            <div>
+                <a href="?{{ request.GET.urlencode }}&export=excel" class="btn btn-sm btn-success">
+                    <i class="fas fa-file-excel"></i> {% trans "تصدير Excel" %}
+                </a>
+                <button onclick="window.print()" class="btn btn-sm btn-secondary">
+                    <i class="fas fa-print"></i> {% trans "طباعة" %}
+                </button>
+            </div>
+        </div>
+        <div class="card-body">
+            <form method="get" class="mb-4 no-print">
+                <div class="row">
+                    <div class="col-md-4">
+                        <label>{% trans "من تاريخ" %}</label>
+                        <input type="date" name="start_date" value="{{ start_date }}" class="form-control">
+                    </div>
+                    <div class="col-md-4">
+                        <label>{% trans "إلى تاريخ" %}</label>
+                        <input type="date" name="end_date" value="{{ end_date }}" class="form-control">
+                    </div>
+                    <div class="col-md-4">
+                        <label>&nbsp;</label>
+                        <button type="submit" class="btn btn-primary btn-block">{% trans "تحديث" %}</button>
+                    </div>
+                </div>
+            </form>
+
+            <div class="table-responsive">
+                <table class="table table-bordered">
+                    <thead class="bg-dark text-white text-center">
+                        <tr>
+                            <th>{% trans "الحساب" %}</th>
+                            <th>{% trans "ضريبة المشتريات (مدين)" %}</th>
+                            <th>{% trans "ضريبة المبيعات (دائن)" %}</th>
+                            <th>{% trans "الصافي المستحق" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in report.data %}
+                        <tr>
+                            <td>{{ row.account.name }}</td>
+                            <td class="text-center">{{ row.debit|floatformat:2 }}</td>
+                            <td class="text-center">{{ row.credit|floatformat:2 }}</td>
+                            <td class="text-center {% if row.net > 0 %}text-danger font-weight-bold{% elif row.net < 0 %}text-success{% endif %}">
+                                {{ row.net|floatformat:2 }}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="4" class="text-center">{% trans "لا توجد بيانات ضريبية للفترة المحددة" %}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot class="bg-light font-weight-bold">
+                        <tr>
+                            <td class="text-right">{% trans "الإجمالي الكلي" %}</td>
+                            <td class="text-center text-primary">{{ report.total_input_vat|floatformat:2 }}</td>
+                            <td class="text-center text-danger">{{ report.total_output_vat|floatformat:2 }}</td>
+                            <td class="text-center {% if report.net_vat_payable > 0 %}text-danger{% else %}text-success{% endif %}">
+                                {{ report.net_vat_payable|floatformat:2 }}
+                            </td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+
+            <div class="mt-4 alert {% if report.net_vat_payable > 0 %}alert-danger{% else %}alert-success{% endif %}">
+                <h5>{% trans "ملخص الإقرار الضريبي:" %}</h5>
+                <p class="mb-0">
+                    {% if report.net_vat_payable > 0 %}
+                        {% trans "المبلغ المستحق للدفع للهيئة الاتحادية للضرائب هو:" %} <strong>{{ report.net_vat_payable|floatformat:2 }}</strong>
+                    {% else %}
+                        {% trans "لديك رصيد ضريبي مسترد بقيمة:" %} <strong>{{ report.net_vat_payable|abs|floatformat:2 }}</strong>
+                    {% endif %}
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+@media print {
+    .no-print { display: none !important; }
+    .card { border: none !important; box-shadow: none !important; }
+}
+</style>
+{% endblock %}

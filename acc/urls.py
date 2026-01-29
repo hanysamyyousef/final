@@ -34,6 +34,7 @@ urlpatterns = [
     path("farm/", views.farm_home, name="farm_home"),
     path("hatchery/", include("hatchery.urls")),
     path("inventory/", include("inventory.urls")),
+    path("accounting/", include("accounting.urls")),
 
     # إضافة مسارات API
     path('api/product/<int:product_id>/info/', product_info_api, name='product_info_api'),

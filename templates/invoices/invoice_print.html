@@ -325,13 +325,13 @@
         <!-- عنوان الفاتورة -->
         <div class="invoice-title">
             {% if invoice.invoice_type == 'sale' %}
-                فاتورة بيع
+                فاتورة ضريبية
             {% elif invoice.invoice_type == 'purchase' %}
-                فاتورة شراء
+                فاتورة شراء ضريبية
             {% elif invoice.invoice_type == 'sale_return' %}
-                مرتجع بيع
+                مرتجع مبيعات ضريبي
             {% elif invoice.invoice_type == 'purchase_return' %}
-                مرتجع شراء
+                مرتجع مشتريات ضريبي
             {% endif %}
         </div>
 
@@ -340,8 +340,15 @@
             <tr>
                 <td style="width: 20%; font-weight: bold; padding: 5px; border: 1px solid #ddd; background-color: #f9f9f9;">رقم الفاتورة:</td>
                 <td style="width: 30%; padding: 5px; border: 1px solid #ddd;">{{ invoice.number }}</td>
-                <td style="width: 20%; font-weight: bold; padding: 5px; border: 1px solid #ddd; background-color: #f9f9f9;">{{ invoice.invoice_type|yesno:"العميل,المورد" }}:</td>
-                <td style="width: 30%; padding: 5px; border: 1px solid #ddd;">{{ invoice.contact.name }}</td>
+                <td style="width: 20%; font-weight: bold; padding: 5px; border: 1px solid #ddd; background-color: #f9f9f9;">
+                    {% if invoice.invoice_type == 'sale' or invoice.invoice_type == 'sale_return' %}العميل:{% else %}المورد:{% endif %}
+                </td>
+                <td style="width: 30%; padding: 5px; border: 1px solid #ddd;">
+                    {{ invoice.contact.name }}
+                    {% if invoice.contact.tax_number %}
+                        <br><small>الرقم الضريبي: {{ invoice.contact.tax_number }}</small>
+                    {% endif %}
+                </td>
             </tr>
             <tr>
                 <td style="font-weight: bold; padding: 5px; border: 1px solid #ddd; background-color: #f9f9f9;">التاريخ:</td>
@@ -469,7 +476,46 @@
             </button>
         </div>
     </div>
-    <!-- إضافة مكتبات jsPDF و SheetJS -->
+    <!-- بيانات الفاتورة للتصدير بصيغة JSON لتجنب أخطاء Linter في JS -->
+    <script id="invoice-data" type="application/json">
+    {
+        "companyName": "{{ company.name|escapejs }}",
+        "companyAddress": "{{ company.address|escapejs }}",
+        "companyPhone": "{{ company.phone|escapejs }}",
+        "invoiceNumber": "{{ invoice.number|escapejs }}",
+        "invoiceType": "{{ invoice.invoice_type|escapejs }}",
+        "invoiceTypeDisplay": "{% if invoice.invoice_type == 'sale' %}فاتورة ضريبية{% elif invoice.invoice_type == 'purchase' %}فاتورة شراء ضريبية{% elif invoice.invoice_type == 'sale_return' %}مرتجع مبيعات ضريبي{% else %}مرتجع مشتريات ضريبي{% endif %}",
+        "contactName": "{{ invoice.contact.name|escapejs }}",
+        "contactLabel": "{{ invoice.invoice_type|yesno:'العميل,المورد'|escapejs }}:",
+        "date": "{{ invoice.date|date:'Y-m-d'|escapejs }}",
+        "storeName": "{{ invoice.store.name|escapejs }}",
+        "paymentType": "{{ invoice.get_payment_type_display|escapejs }}",
+        "extraLabel": "{% if invoice.representative %}المندوب:{% elif invoice.driver %}السائق:{% else %}الخزنة:{% endif %}",
+        "extraValue": "{% if invoice.representative %}{{ invoice.representative.name|escapejs }}{% elif invoice.driver %}{{ invoice.driver.name|escapejs }}{% else %}{{ invoice.safe.name|escapejs }}{% endif %}",
+        "totalAmount": "{{ invoice.total_amount }}",
+        "discountAmount": "{{ invoice.discount_amount }}",
+        "taxAmount": "{{ invoice.tax_amount }}",
+        "netAmount": "{{ invoice.net_amount }}",
+        "paidAmount": "{{ invoice.paid_amount }}",
+        "remainingAmount": "{{ invoice.remaining_amount }}",
+        "notes": "{{ invoice.notes|default:'لا توجد ملاحظات'|escapejs }}",
+        "items": [
+            {% for item in invoice.items.all %}
+            {
+                "counter": "{{ forloop.counter }}",
+                "productName": "{{ item.product.name|escapejs }}",
+                "unitName": "{{ item.product_unit.unit.name|escapejs }}",
+                "quantity": "{{ item.quantity }}",
+                "unitPrice": "{{ item.unit_price }}",
+                "discountAmount": "{{ item.discount_amount }}",
+                "taxAmount": "{{ item.tax_amount }}",
+                "netPrice": "{{ item.net_price }}"
+            }{% if not forloop.last %},{% endif %}
+            {% endfor %}
+        ]
+    }
+    </script>
+
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
@@ -502,7 +548,8 @@
                 const imgHeight = canvas.height * imgWidth / canvas.width;
 
                 doc.addImage(imgData, 'PNG', 10, 10, imgWidth, imgHeight);
-                doc.save('فاتورة_{{ invoice.number }}.pdf');
+                const invoiceNumber = document.getElementById('invoice-data') ? JSON.parse(document.getElementById('invoice-data').textContent).invoiceNumber : '{{ invoice.number }}';
+                doc.save('فاتورة_' + invoiceNumber + '.pdf');
 
                 // إعادة إظهار الأزرار
                 buttonContainer.style.display = 'flex';
@@ -511,81 +558,72 @@
 
         // دالة تصدير إلى Excel
         function exportToExcel() {
+            // جلب البيانات من JSON
+            const invoiceData = JSON.parse(document.getElementById('invoice-data').textContent);
+            
             // إنشاء مصفوفة البيانات
             const data = [];
 
             // إضافة معلومات الشركة
-            data.push(['{{ company.name }}']);
-            data.push(['{{ company.address }}']);
-            data.push(['هاتف: {{ company.phone }}']);
+            data.push([invoiceData.companyName]);
+            data.push([invoiceData.companyAddress]);
+            data.push(['هاتف: ' + invoiceData.companyPhone]);
             data.push([]);
 
             // إضافة نوع الفاتورة
-            {% if invoice.invoice_type == 'sale' %}
-                data.push(['فاتورة بيع']);
-            {% elif invoice.invoice_type == 'purchase' %}
-                data.push(['فاتورة شراء']);
-            {% elif invoice.invoice_type == 'sale_return' %}
-                data.push(['مرتجع بيع']);
-            {% elif invoice.invoice_type == 'purchase_return' %}
-                data.push(['مرتجع شراء']);
-            {% endif %}
+            data.push([invoiceData.invoiceTypeDisplay]);
             data.push([]);
 
             // إضافة معلومات الفاتورة
-            data.push(['رقم الفاتورة:', '{{ invoice.number }}', '{{ invoice.invoice_type|yesno:"العميل,المورد" }}:', '{{ invoice.contact.name }}']);
-            data.push(['التاريخ:', '{{ invoice.date|date:"Y-m-d" }}', 'المخزن:', '{{ invoice.store.name }}']);
-            data.push(['طريقة الدفع:', '{{ invoice.get_payment_type_display }}',
-                '{% if invoice.representative %}المندوب:{% elif invoice.driver %}السائق:{% else %}الخزنة:{% endif %}',
-                '{% if invoice.representative %}{{ invoice.representative.name }}{% elif invoice.driver %}{{ invoice.driver.name }}{% else %}{{ invoice.safe.name }}{% endif %}'
-            ]);
+            data.push(['رقم الفاتورة:', invoiceData.invoiceNumber, invoiceData.contactLabel, invoiceData.contactName]);
+            data.push(['التاريخ:', invoiceData.date, 'المخزن:', invoiceData.storeName]);
+            data.push(['طريقة الدفع:', invoiceData.paymentType, invoiceData.extraLabel, invoiceData.extraValue]);
             data.push([]);
 
             // إضافة رأس جدول المنتجات
             data.push(['#', 'المنتج', 'الوحدة', 'الكمية', 'السعر', 'الخصم', 'الضريبة', 'الإجمالي']);
 
             // إضافة بنود الفاتورة
-            {% for item in invoice.items.all %}
+            invoiceData.items.forEach(item => {
                 data.push([
-                    '{{ forloop.counter }}',
-                    '{{ item.product.name }}',
-                    '{{ item.product_unit.unit.name }}',
-                    '{{ item.quantity }}',
-                    '{{ item.unit_price }}',
-                    '{{ item.discount_amount }}',
-                    '{{ item.tax_amount }}',
-                    '{{ item.net_price }}'
+                    item.counter,
+                    item.productName,
+                    item.unitName,
+                    item.quantity,
+                    item.unitPrice,
+                    item.discountAmount,
+                    item.taxAmount,
+                    item.netPrice
                 ]);
-            {% endfor %}
+            });
             data.push([]);
 
             // إضافة إجماليات الفاتورة
-            data.push(['الإجمالي:', '{{ invoice.total_amount }}']);
-            data.push(['الخصم:', '{{ invoice.discount_amount }}']);
-            data.push(['الضريبة:', '{{ invoice.tax_amount }}']);
-            data.push(['الصافي:', '{{ invoice.net_amount }}']);
+            data.push(['الإجمالي:', invoiceData.totalAmount]);
+            data.push(['الخصم:', invoiceData.discountAmount]);
+            data.push(['الضريبة:', invoiceData.taxAmount]);
+            data.push(['الصافي:', invoiceData.netAmount]);
             data.push([]);
 
             // إضافة معلومات الدفع
-            data.push(['المدفوع:', '{{ invoice.paid_amount }}', 'المتبقي:', '{{ invoice.remaining_amount }}']);
+            data.push(['المدفوع:', invoiceData.paidAmount, 'المتبقي:', invoiceData.remainingAmount]);
             data.push([]);
 
             // إضافة ملاحظات
             data.push(['ملاحظات:']);
-            data.push(['{{ invoice.notes|default:"لا توجد ملاحظات" }}']);
+            data.push([invoiceData.notes]);
 
-            // إنشاء ورقة عمل
+            // إنشاء ورقة العمل
             const ws = XLSX.utils.aoa_to_sheet(data);
 
             // تعيين اتجاه الورقة من اليمين إلى اليسار
             ws['!dir'] = 'rtl';
 
-            // إنشاء مصنف عمل
             const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, 'فاتورة {{ invoice.number }}');
+            XLSX.utils.book_append_sheet(wb, ws, "Invoice");
 
-            // تصدير المصنف
-            XLSX.writeFile(wb, 'فاتورة_{{ invoice.number }}.xlsx');
+            // حفظ الملف
+            XLSX.writeFile(wb, "فاتورة_" + invoiceData.invoiceNumber + ".xlsx");
         }
     </script>
 </body>

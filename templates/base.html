@@ -235,6 +235,28 @@
                             </ul>
                         </li>
 
+                        <!-- قائمة المحاسبة المؤسساتية (ERP Accounting) -->
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle text-warning font-weight-bold" href="#" id="accountingDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="fas fa-calculator"></i> المحاسبة المؤسساتية
+                            </a>
+                            <ul class="dropdown-menu" aria-labelledby="accountingDropdown">
+                                <li><a class="dropdown-item fw-bold text-primary" href="{% url 'accounting:dashboard' %}"><i class="fas fa-tachometer-alt"></i> لوحة التحكم المالية</a></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item" href="/admin/accounting/account/"><i class="fas fa-sitemap"></i> شجرة الحسابات</a></li>
+                                <li><a class="dropdown-item" href="/admin/accounting/journalentry/"><i class="fas fa-book"></i> القيود المحاسبية</a></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item" href="{% url 'accounting:trial_balance' %}"><i class="fas fa-balance-scale"></i> ميزان المراجعة</a></li>
+                                <li><a class="dropdown-item" href="{% url 'accounting:profit_loss' %}"><i class="fas fa-chart-pie"></i> قائمة الدخل</a></li>
+                                <li><a class="dropdown-item" href="{% url 'accounting:balance_sheet' %}"><i class="fas fa-university"></i> الميزانية العمومية</a></li>
+                                <li><a class="dropdown-item" href="{% url 'accounting:vat_report' %}"><i class="fas fa-percentage"></i> تقرير الضريبة (UAE VAT)</a></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item" href="/admin/accounting/fixedasset/"><i class="fas fa-building"></i> الأصول الثابتة</a></li>
+                                <li><a class="dropdown-item" href="/admin/accounting/financialperiod/"><i class="fas fa-lock"></i> الفترات المالية</a></li>
+                                <li><a class="dropdown-item" href="/admin/accounting/auditlog/"><i class="fas fa-history"></i> سجل التدقيق</a></li>
+                            </ul>
+                        </li>
+
                         <!-- قائمة المالية -->
                         <li class="nav-item dropdown">
                             <a class="nav-link dropdown-toggle" href="#" id="financeDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">

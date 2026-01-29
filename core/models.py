@@ -34,6 +34,8 @@ class Branch(models.Model):
 class Store(models.Model):
     branch = models.ForeignKey(Branch, on_delete=models.CASCADE, related_name='stores', verbose_name=_("الفرع"))
     name = models.CharField(_("اسم المخزن"), max_length=255)
+    account = models.OneToOneField('accounting.Account', on_delete=models.PROTECT, null=True, blank=True,
+                                 related_name='store', verbose_name=_("حساب المخزون"))
     address = models.TextField(_("العنوان"), blank=True, null=True)
     keeper = models.CharField(_("أمين المخزن"), max_length=255, blank=True, null=True)
     notes = models.TextField(_("ملاحظات"), blank=True, null=True)
@@ -50,6 +52,8 @@ class Safe(models.Model):
     name = models.CharField(_("اسم الخزنة"), max_length=255)
     initial_balance = models.DecimalField(_("الرصيد الافتتاحي"), max_digits=15, decimal_places=2, default=0)
     current_balance = models.DecimalField(_("الرصيد الحالي"), max_digits=15, decimal_places=2, default=0)
+    # ربط الخزنة بحساب في شجرة الحسابات
+    account = models.OneToOneField('accounting.Account', on_delete=models.PROTECT, null=True, blank=True, related_name='safe', verbose_name=_("حساب الأستاذ"))
 
     class Meta:
         verbose_name = _("خزنة")
@@ -108,6 +112,8 @@ class Contact(models.Model):
     current_balance = models.DecimalField(_("الرصيد الحالي"), max_digits=15, decimal_places=2, default=0)
     credit_limit = models.DecimalField(_("حد الائتمان"), max_digits=15, decimal_places=2, default=0)
     notes = models.TextField(_("ملاحظات"), blank=True, null=True)
+    # ربط جهة الاتصال بحساب في شجرة الحسابات
+    account = models.OneToOneField('accounting.Account', on_delete=models.PROTECT, null=True, blank=True, related_name='contact', verbose_name=_("حساب الأستاذ"))
 
     class Meta:
         verbose_name = _("جهة اتصال")
@@ -115,6 +121,7 @@ class Contact(models.Model):
 
     def __str__(self):
         return f"{self.name} - {self.get_contact_type_display()}"
+
 
 
 class SystemSettings(models.Model):
@@ -159,6 +166,27 @@ class SystemSettings(models.Model):
     default_store = models.ForeignKey(Store, on_delete=models.SET_NULL, null=True, blank=True,
                                     related_name='default_store_settings',
                                     verbose_name=_("المخزن الافتراضي"))
+
+    # إعدادات المحاسبة
+    sales_account = models.ForeignKey('accounting.Account', on_delete=models.SET_NULL, null=True, blank=True,
+                                    related_name='settings_sales', verbose_name=_("حساب المبيعات الافتراضي"))
+    purchases_account = models.ForeignKey('accounting.Account', on_delete=models.SET_NULL, null=True, blank=True,
+                                        related_name='settings_purchases', verbose_name=_("حساب المشتريات الافتراضي"))
+    vat_output_account = models.ForeignKey('accounting.Account', on_delete=models.SET_NULL, null=True, blank=True,
+                                          related_name='settings_vat_out', verbose_name=_("حساب ضريبة المخرجات (المبيعات)"))
+    vat_input_account = models.ForeignKey('accounting.Account', on_delete=models.SET_NULL, null=True, blank=True,
+                                         related_name='settings_vat_in', verbose_name=_("حساب ضريبة المدخلات (المشتريات)"))
+    cogs_account = models.ForeignKey('accounting.Account', on_delete=models.SET_NULL, null=True, blank=True,
+                                   related_name='settings_cogs', verbose_name=_("حساب تكلفة البضاعة المباعة"))
+    default_expense_account = models.ForeignKey('accounting.Account', on_delete=models.SET_NULL, null=True, blank=True,
+                                              related_name='settings_expense', verbose_name=_("حساب المصروفات الافتراضي"))
+    default_income_account = models.ForeignKey('accounting.Account', on_delete=models.SET_NULL, null=True, blank=True,
+                                             related_name='settings_income', verbose_name=_("حساب الإيرادات الافتراضي"))
+    default_salaries_account = models.ForeignKey('accounting.Account', on_delete=models.SET_NULL, null=True, blank=True,
+                                               related_name='settings_salaries', verbose_name=_("حساب الرواتب والأجور"))
+    default_loans_account = models.ForeignKey('accounting.Account', on_delete=models.SET_NULL, null=True, blank=True,
+                                            related_name='settings_loans', verbose_name=_("حساب سلف الموظفين"))
+    vat_percentage = models.DecimalField(_("نسبة ضريبة القيمة المضافة (%)"), max_digits=5, decimal_places=2, default=5.0)
 
     # إعدادات طباعة الفاتورة
     hide_company_info = models.BooleanField(_("إخفاء بيانات الشركة في الفاتورة"), default=False)

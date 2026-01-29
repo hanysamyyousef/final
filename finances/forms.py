@@ -37,11 +37,13 @@ class ProductTransactionForm(forms.ModelForm):
 class ExpenseForm(forms.ModelForm):
     class Meta:
         model = Expense
-        fields = ['category', 'safe', 'amount', 'payee', 'notes', 'reference_number', 'date']
+        fields = ['category', 'safe', 'amount', 'vat_amount', 'cost_center', 'payee', 'notes', 'reference_number', 'date']
         widgets = {
             'category': forms.Select(attrs={'class': 'form-select'}),
             'safe': forms.Select(attrs={'class': 'form-select'}),
             'amount': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
+            'vat_amount': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
+            'cost_center': forms.Select(attrs={'class': 'form-select'}),
             'payee': forms.TextInput(attrs={'class': 'form-control'}),
             'notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
             'reference_number': forms.TextInput(attrs={'class': 'form-control'}),
@@ -51,11 +53,13 @@ class ExpenseForm(forms.ModelForm):
 class IncomeForm(forms.ModelForm):
     class Meta:
         model = Income
-        fields = ['category', 'safe', 'amount', 'payer', 'notes', 'reference_number', 'date']
+        fields = ['category', 'safe', 'amount', 'vat_amount', 'cost_center', 'payer', 'notes', 'reference_number', 'date']
         widgets = {
             'category': forms.Select(attrs={'class': 'form-select'}),
             'safe': forms.Select(attrs={'class': 'form-select'}),
             'amount': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
+            'vat_amount': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
+            'cost_center': forms.Select(attrs={'class': 'form-select'}),
             'payer': forms.TextInput(attrs={'class': 'form-control'}),
             'notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
             'reference_number': forms.TextInput(attrs={'class': 'form-control'}),

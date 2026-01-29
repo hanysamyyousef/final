@@ -1,0 +1,108 @@
+{% extends "base/base.html" %}
+{% load i18n %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="card shadow mb-4">
+        <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+            <h6 class="m-0 font-weight-bold text-primary">{{ title }}</h6>
+            <div class="btn-group">
+                <a href="?{{ request.GET.urlencode }}&export=excel" class="btn btn-sm btn-success">
+                    <i class="fas fa-file-excel"></i> {% trans "تصدير Excel" %}
+                </a>
+                <button onclick="window.print()" class="btn btn-sm btn-secondary">
+                    <i class="fas fa-print"></i> {% trans "طباعة" %}
+                </button>
+            </div>
+        </div>
+        <div class="card-body">
+            <form method="get" class="mb-4 no-print">
+                <div class="row align-items-end">
+                    <div class="col-md-5">
+                        <label>{% trans "حتى تاريخ" %}</label>
+                        <input type="date" name="date" value="{{ date }}" class="form-control">
+                    </div>
+                    <div class="col-md-5">
+                        <label>{% trans "مركز التكلفة" %}</label>
+                        <select name="cost_center" class="form-control">
+                            <option value="">{% trans "الكل" %}</option>
+                            {% for cc in cost_centers %}
+                            <option value="{{ cc.id }}" {% if cost_center_id == cc.id|stringformat:"s" %}selected{% endif %}>{{ cc.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <button type="submit" class="btn btn-primary btn-block">{% trans "تحديث" %}</button>
+                    </div>
+                </div>
+            </form>
+
+            <div class="row">
+                <!-- الأصول -->
+                <div class="col-md-6 border-right">
+                    <h5 class="text-primary border-bottom pb-2">{% trans "الأصول" %}</h5>
+                    <table class="table table-sm">
+                        {% for item in report.assets %}
+                        <tr>
+                            <td>{{ item.account.name }}</td>
+                            <td class="text-right">{{ item.balance|floatformat:2 }}</td>
+                        </tr>
+                        {% endfor %}
+                    </table>
+                    <div class="d-flex justify-content-between font-weight-bold p-2 bg-light">
+                        <span>{% trans "إجمالي الأصول" %}</span>
+                        <span>{{ report.total_assets|floatformat:2 }}</span>
+                    </div>
+                </div>
+
+                <!-- الخصوم وحقوق الملكية -->
+                <div class="col-md-6">
+                    <h5 class="text-info border-bottom pb-2">{% trans "الخصوم وحقوق الملكية" %}</h5>
+                    
+                    <p class="font-weight-bold small text-muted mt-2 mb-1">{% trans "الخصوم" %}</p>
+                    <table class="table table-sm mb-3">
+                        {% for item in report.liabilities %}
+                        <tr>
+                            <td>{{ item.account.name }}</td>
+                            <td class="text-right">{{ item.balance|floatformat:2 }}</td>
+                        </tr>
+                        {% endfor %}
+                    </table>
+
+                    <p class="font-weight-bold small text-muted mb-1">{% trans "حقوق الملكية" %}</p>
+                    <table class="table table-sm">
+                        {% for item in report.equity %}
+                        <tr>
+                            <td>{{ item.account.name }}</td>
+                            <td class="text-right">{{ item.balance|floatformat:2 }}</td>
+                        </tr>
+                        {% endfor %}
+                        <tr>
+                            <td class="font-italic">{% trans "صافي ربح الفترة" %}</td>
+                            <td class="text-right font-italic">{{ report.net_profit|floatformat:2 }}</td>
+                        </tr>
+                    </table>
+
+                    <div class="d-flex justify-content-between font-weight-bold p-2 bg-light">
+                        <span>{% trans "إجمالي الخصوم وحقوق الملكية" %}</span>
+                        <span>{{ report.total_liabilities_equity|floatformat:2 }}</span>
+                    </div>
+                </div>
+            </div>
+
+            {% if not report.is_balanced %}
+            <div class="alert alert-warning mt-4">
+                <i class="fas fa-exclamation-circle"></i> {% trans "تنبيه: الميزانية غير متزنة، يرجى مراجعة القيود." %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<style>
+@media print {
+    .no-print { display: none !important; }
+    .card { border: none !important; shadow: none !important; }
+}
+</style>
+{% endblock %}

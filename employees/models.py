@@ -28,6 +28,8 @@ class Employee(models.Model):
     salary = models.DecimalField(_("الراتب"), max_digits=10, decimal_places=2, default=0)
     status = models.CharField(_("الحالة"), max_length=20, choices=STATUS_CHOICES, default=ACTIVE)
     notes = models.TextField(_("ملاحظات"), blank=True, null=True)
+    account = models.OneToOneField('accounting.Account', on_delete=models.PROTECT, null=True, blank=True,
+                                 related_name='employee', verbose_name=_("حساب الأستاذ"))
 
     class Meta:
         verbose_name = _("موظف")
@@ -124,29 +126,64 @@ class EmployeeLoan(models.Model):
         return f"{self.employee.name} - {self.amount} - {self.date}"
 
     def post_loan(self):
-        """ترحيل السلفة وإنشاء حركة خزنة"""
+        """ترحيل السلفة وإنشاء حركة خزنة والقيود المحاسبية"""
         if self.is_posted:
             return False
 
-        # إنشاء حركة خزنة للسلفة
-        current_balance = self.safe.current_balance
-        balance_after = current_balance - self.amount
+        from django.db import transaction
+        from accounting.models import JournalEntry, JournalItem
 
-        transaction = SafeTransaction(
-            safe=self.safe,
-            amount=self.amount,
-            transaction_type=SafeTransaction.WITHDRAWAL,
-            description=f"سلفة للموظف: {self.employee.name}",
-            reference_number=f"LOAN-{self.id}",
-            balance_before=current_balance,
-            balance_after=balance_after
-        )
-        transaction.save()
+        with transaction.atomic():
+            # إنشاء حركة خزنة للسلفة
+            current_balance = self.safe.current_balance
+            balance_after = current_balance - self.amount
 
-        # تحديث السلفة
-        self.transaction = transaction
-        self.is_posted = True
-        self.save(update_fields=['transaction', 'is_posted'])
+            safe_transaction = SafeTransaction(
+                safe=self.safe,
+                amount=self.amount,
+                transaction_type=SafeTransaction.WITHDRAWAL,
+                description=f"سلفة للموظف: {self.employee.name}",
+                reference_number=f"LOAN-{self.id}",
+                balance_before=current_balance,
+                balance_after=balance_after
+            )
+            safe_transaction.save()
+
+            # إنشاء القيد المحاسبي التلقائي
+            from core.models import SystemSettings
+            settings = SystemSettings.get_settings()
+            loan_account = settings.default_loans_account or self.employee.account
+            
+            if loan_account and self.safe.account:
+                journal_entry = JournalEntry.objects.create(
+                    entry_number=f"LOAN-{self.id}-{timezone.now().strftime('%Y%m%d%H%M%S')}",
+                    date=self.date,
+                    description=f"قيد سلفة موظف تلقائي: {self.employee.name}",
+                    reference=str(self.id)
+                )
+
+                # من حساب سلف الموظفين (الجانب المدين)
+                JournalItem.objects.create(
+                    journal_entry=journal_entry,
+                    account=loan_account,
+                    debit=self.amount,
+                    memo=f"سلفة للموظف {self.employee.name}"
+                )
+
+                # إلى حساب الخزنة (الجانب الدائن)
+                JournalItem.objects.create(
+                    journal_entry=journal_entry,
+                    account=self.safe.account,
+                    credit=self.amount,
+                    memo=f"صرف نقدي لسلفة {self.employee.name}"
+                )
+
+                journal_entry.post()
+
+            # تحديث السلفة
+            self.transaction = safe_transaction
+            self.is_posted = True
+            self.save(update_fields=['transaction', 'is_posted'])
 
         return True
 
@@ -197,31 +234,66 @@ class Salary(models.Model):
         return self.net_salary
 
     def post_salary(self):
-        """ترحيل الراتب وإنشاء حركة خزنة"""
+        """ترحيل الراتب وإنشاء حركة خزنة والقيود المحاسبية"""
         if self.is_posted or not self.safe:
             return False
 
-        # إنشاء حركة خزنة للراتب
-        current_balance = self.safe.current_balance
-        balance_after = current_balance - self.net_salary
+        from django.db import transaction
+        from accounting.models import JournalEntry, JournalItem
 
-        transaction = SafeTransaction(
-            safe=self.safe,
-            amount=self.net_salary,
-            transaction_type=SafeTransaction.WITHDRAWAL,
-            description=f"راتب الموظف: {self.employee.name} عن شهر {self.month}/{self.year}",
-            reference_number=f"SALARY-{self.id}",
-            balance_before=current_balance,
-            balance_after=balance_after
-        )
-        transaction.save()
+        with transaction.atomic():
+            # إنشاء حركة خزنة للراتب
+            current_balance = self.safe.current_balance
+            balance_after = current_balance - self.net_salary
 
-        # تحديث الراتب
-        self.transaction = transaction
-        self.is_posted = True
-        self.is_paid = True
-        self.payment_date = timezone.now().date()
-        self.save(update_fields=['transaction', 'is_posted', 'is_paid', 'payment_date'])
+            safe_transaction = SafeTransaction(
+                safe=self.safe,
+                amount=self.net_salary,
+                transaction_type=SafeTransaction.WITHDRAWAL,
+                description=f"راتب الموظف: {self.employee.name} عن شهر {self.month}/{self.year}",
+                reference_number=f"SALARY-{self.id}",
+                balance_before=current_balance,
+                balance_after=balance_after
+            )
+            safe_transaction.save()
+
+            # إنشاء القيد المحاسبي التلقائي
+            from core.models import SystemSettings
+            settings = SystemSettings.get_settings()
+            salary_expense_account = settings.default_salaries_account
+            
+            if salary_expense_account and self.safe.account:
+                journal_entry = JournalEntry.objects.create(
+                    entry_number=f"SAL-{self.id}-{timezone.now().strftime('%Y%m%d%H%M%S')}",
+                    date=timezone.now(),
+                    description=f"قيد راتب تلقائي: {self.employee.name} - {self.month}/{self.year}",
+                    reference=str(self.id)
+                )
+
+                # من حساب مصروف الرواتب (الجانب المدين)
+                JournalItem.objects.create(
+                    journal_entry=journal_entry,
+                    account=salary_expense_account,
+                    debit=self.net_salary,
+                    memo=f"راتب الموظف {self.employee.name} شهر {self.month}/{self.year}"
+                )
+
+                # إلى حساب الخزنة (الجانب الدائن)
+                JournalItem.objects.create(
+                    journal_entry=journal_entry,
+                    account=self.safe.account,
+                    credit=self.net_salary,
+                    memo=f"صرف نقدي لراتب {self.employee.name}"
+                )
+
+                journal_entry.post()
+
+            # تحديث الراتب
+            self.transaction = safe_transaction
+            self.is_posted = True
+            self.is_paid = True
+            self.payment_date = timezone.now().date()
+            self.save(update_fields=['transaction', 'is_posted', 'is_paid', 'payment_date'])
 
         return True
 

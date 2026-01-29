@@ -52,6 +52,7 @@ INSTALLED_APPS = [
     "allauth.socialaccount.providers.twitter",
 
     "rolepermissions",
+    "mptt",
 
     # Custom apps
     "core",
@@ -63,6 +64,7 @@ INSTALLED_APPS = [
     "employees",
     "hatchery",
     "inventory",
+    "accounting",
 ]
 
 MIDDLEWARE = [

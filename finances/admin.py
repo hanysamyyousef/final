@@ -158,8 +158,8 @@ class IncomeCategoryAdmin(admin.ModelAdmin):
 # تسجيل نموذج المصروفات
 @admin.register(Expense)
 class ExpenseAdmin(admin.ModelAdmin):
-    list_display = ('number', 'date', 'category', 'payee', 'amount', 'safe', 'is_posted', 'get_post_actions')
-    list_filter = ('category', 'safe', 'date', 'is_posted')
+    list_display = ('number', 'date', 'category', 'payee', 'amount', 'vat_amount', 'cost_center', 'safe', 'is_posted', 'get_post_actions')
+    list_filter = ('category', 'cost_center', 'safe', 'date', 'is_posted')
     search_fields = ('number', 'payee', 'notes', 'reference_number')
     date_hierarchy = 'date'
     readonly_fields = ('is_posted', 'get_post_actions')
@@ -258,8 +258,8 @@ class ExpenseAdmin(admin.ModelAdmin):
 # تسجيل نموذج الإيرادات
 @admin.register(Income)
 class IncomeAdmin(admin.ModelAdmin):
-    list_display = ('number', 'date', 'category', 'payer', 'amount', 'safe', 'is_posted', 'get_post_actions')
-    list_filter = ('category', 'safe', 'date', 'is_posted')
+    list_display = ('number', 'date', 'category', 'payer', 'amount', 'vat_amount', 'cost_center', 'safe', 'is_posted', 'get_post_actions')
+    list_filter = ('category', 'cost_center', 'safe', 'date', 'is_posted')
     search_fields = ('number', 'payer', 'notes', 'reference_number')
     date_hierarchy = 'date'
     readonly_fields = ('is_posted', 'get_post_actions')

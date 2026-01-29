@@ -5,6 +5,46 @@
 
 {% block content %}
 <div class="row mb-4">
+    <!-- إحصائيات الدفعات -->
+    <div class="col-md-12">
+        <div class="card shadow">
+            <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+                <h4 class="mb-0"><i class="fas fa-file-invoice-dollar me-2"></i>التقارير المالية والمحاسبية</h4>
+                <span class="badge bg-primary">نظام ERP مطور</span>
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-md-3 mb-3">
+                        <a href="{% url 'accounting:trial_balance' %}" class="btn btn-outline-primary btn-lg w-100 p-4">
+                            <i class="fas fa-balance-scale fa-2x mb-2"></i><br>
+                            ميزان المراجعة
+                        </a>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <a href="{% url 'accounting:profit_loss' %}" class="btn btn-outline-success btn-lg w-100 p-4">
+                            <i class="fas fa-chart-line fa-2x mb-2"></i><br>
+                            قائمة الدخل
+                        </a>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <a href="{% url 'accounting:balance_sheet' %}" class="btn btn-outline-info btn-lg w-100 p-4">
+                            <i class="fas fa-university fa-2x mb-2"></i><br>
+                            الميزانية العمومية
+                        </a>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <a href="{% url 'accounting:vat_report' %}" class="btn btn-outline-danger btn-lg w-100 p-4">
+                            <i class="fas fa-percentage fa-2x mb-2"></i><br>
+                            تقرير الضريبة (VAT)
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
     <div class="col-md-12">
         <div class="card">
             <div class="card-header bg-primary text-white">

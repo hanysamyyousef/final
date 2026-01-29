@@ -3,9 +3,13 @@ from django.utils.translation import gettext_lazy as _
 from core.models import Store
 
 class Category(models.Model):
-    name = models.CharField(_("اسم القسم"), max_length=255)
-    parent = models.ForeignKey('self', on_delete=models.CASCADE, blank=True, null=True,
-                             related_name='children', verbose_name=_("القسم الأب"))
+    name = models.CharField(_("اسم القسم"), max_length=100)
+    parent = models.ForeignKey('self', on_delete=models.SET_NULL, blank=True, null=True,
+                             related_name='children', verbose_name=_("القسم الرئيسي"))
+    inventory_account = models.ForeignKey('accounting.Account', on_delete=models.PROTECT, null=True, blank=True,
+                                        related_name='category_inventories', verbose_name=_("حساب المخزون"))
+    cogs_account = models.ForeignKey('accounting.Account', on_delete=models.PROTECT, null=True, blank=True,
+                                   related_name='category_cogs', verbose_name=_("حساب تكلفة المبيعات"))
     description = models.TextField(_("الوصف"), blank=True, null=True)
 
     class Meta:

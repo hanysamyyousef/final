@@ -1,0 +1,108 @@
+{% extends "base/base.html" %}
+{% load i18n %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="card shadow mb-4">
+        <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+            <h6 class="m-0 font-weight-bold text-primary">{{ title }}</h6>
+            <div class="btn-group">
+                <a href="{% url 'accounting:export_trial_balance_excel' %}?start_date={{ start_date }}&end_date={{ end_date }}&cost_center={{ cost_center_id }}" class="btn btn-sm btn-success">
+                    <i class="fas fa-file-excel"></i> {% trans "تصدير Excel" %}
+                </a>
+                <button onclick="window.print()" class="btn btn-sm btn-secondary">
+                    <i class="fas fa-print"></i> {% trans "طباعة" %}
+                </button>
+            </div>
+        </div>
+        <div class="card-body">
+            <!-- Filter Form -->
+            <form method="get" class="mb-4 no-print">
+                <div class="row">
+                    <div class="col-md-3">
+                        <label>{% trans "من تاريخ" %}</label>
+                        <input type="date" name="start_date" value="{{ start_date }}" class="form-control">
+                    </div>
+                    <div class="col-md-3">
+                        <label>{% trans "إلى تاريخ" %}</label>
+                        <input type="date" name="end_date" value="{{ end_date }}" class="form-control">
+                    </div>
+                    <div class="col-md-3">
+                        <label>{% trans "مركز التكلفة" %}</label>
+                        <select name="cost_center" class="form-control">
+                            <option value="">{% trans "الكل" %}</option>
+                            {% for cc in cost_centers %}
+                            <option value="{{ cc.id }}" {% if cost_center_id == cc.id|stringformat:"s" %}selected{% endif %}>{{ cc.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3 d-flex align-items-end">
+                        <button type="submit" class="btn btn-primary mr-2">{% trans "تحديث" %}</button>
+                        <a href="?{{ request.GET.urlencode }}&export=excel" class="btn btn-success">
+                            <i class="fas fa-file-excel"></i> {% trans "تصدير Excel" %}
+                        </a>
+                    </div>
+                </div>
+            </form>
+
+            <div class="table-responsive">
+                <table class="table table-bordered table-striped">
+                    <thead class="thead-dark">
+                        <tr>
+                            <th rowspan="2" class="align-middle">{% trans "كود الحساب" %}</th>
+                            <th rowspan="2" class="align-middle">{% trans "اسم الحساب" %}</th>
+                            <th colspan="2" class="text-center">{% trans "المجاميع" %}</th>
+                            <th colspan="2" class="text-center">{% trans "الأرصدة" %}</th>
+                        </tr>
+                        <tr>
+                            <th class="text-center">{% trans "مدين" %}</th>
+                            <th class="text-center">{% trans "دائن" %}</th>
+                            <th class="text-center">{% trans "مدين" %}</th>
+                            <th class="text-center">{% trans "دائن" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in report.data %}
+                        <tr>
+                            <td>{{ row.account.code }}</td>
+                            <td>{{ row.account.name }}</td>
+                            <td class="text-center">{{ row.debit|floatformat:2 }}</td>
+                            <td class="text-center">{{ row.credit|floatformat:2 }}</td>
+                            <td class="text-center text-primary">{% if row.balance_debit > 0 %}{{ row.balance_debit|floatformat:2 }}{% else %}-{% endif %}</td>
+                            <td class="text-center text-danger">{% if row.balance_credit > 0 %}{{ row.balance_credit|floatformat:2 }}{% else %}-{% endif %}</td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="6" class="text-center">{% trans "لا توجد بيانات" %}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot class="font-weight-bold bg-light">
+                        <tr>
+                            <td colspan="2" class="text-right">{% trans "الإجمالي" %}</td>
+                            <td class="text-center">-</td>
+                            <td class="text-center">-</td>
+                            <td class="text-center text-primary">{{ report.total_debit|floatformat:2 }}</td>
+                            <td class="text-center text-danger">{{ report.total_credit|floatformat:2 }}</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+
+            {% if not report.is_balanced %}
+            <div class="alert alert-danger mt-3">
+                <i class="fas fa-exclamation-triangle"></i> {% trans "تحذير: الميزان غير متوازن!" %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<style>
+@media print {
+    .no-print { display: none !important; }
+    .card { border: none !important; shadow: none !important; }
+    .container-fluid { padding: 0 !important; }
+}
+</style>
+{% endblock %}

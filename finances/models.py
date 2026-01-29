@@ -10,6 +10,8 @@ class ExpenseCategory(models.Model):
     description = models.TextField(_("الوصف"), blank=True, null=True)
     parent = models.ForeignKey('self', on_delete=models.SET_NULL, blank=True, null=True,
                              related_name='children', verbose_name=_("القسم الأب"))
+    account = models.OneToOneField('accounting.Account', on_delete=models.PROTECT, null=True, blank=True,
+                                 related_name='expense_category', verbose_name=_("حساب الأستاذ"))
 
     class Meta:
         verbose_name = _("قسم المصروفات")
@@ -24,6 +26,8 @@ class IncomeCategory(models.Model):
     description = models.TextField(_("الوصف"), blank=True, null=True)
     parent = models.ForeignKey('self', on_delete=models.SET_NULL, blank=True, null=True,
                              related_name='children', verbose_name=_("القسم الأب"))
+    account = models.OneToOneField('accounting.Account', on_delete=models.PROTECT, null=True, blank=True,
+                                 related_name='income_category', verbose_name=_("حساب الأستاذ"))
 
     class Meta:
         verbose_name = _("قسم الإيرادات")
@@ -670,6 +674,9 @@ class Expense(models.Model):
     number = models.CharField(_("رقم المستند"), max_length=50, blank=True)
     date = models.DateTimeField(_("تاريخ المستند"), default=timezone.now)
     amount = models.DecimalField(_("المبلغ"), max_digits=15, decimal_places=2)
+    vat_amount = models.DecimalField(_("قيمة الضريبة"), max_digits=15, decimal_places=2, default=0)
+    cost_center = models.ForeignKey('accounting.CostCenter', on_delete=models.SET_NULL, null=True, blank=True,
+                                  related_name='expenses', verbose_name=_("مركز التكلفة"))
     category = models.ForeignKey(ExpenseCategory, on_delete=models.PROTECT, related_name='expenses',
                                verbose_name=_("قسم المصروفات"))
     safe = models.ForeignKey(Safe, on_delete=models.CASCADE, related_name='expenses',
@@ -701,32 +708,77 @@ class Expense(models.Model):
             self.post_expense()
 
     def post_expense(self):
-        """ترحيل المصروف وإنشاء المعاملة المالية المرتبطة"""
+        """ترحيل المصروف وإنشاء المعاملة المالية المرتبطة والقيود المحاسبية"""
         if self.is_posted and self.created_transaction:
             return False
 
-        # إنشاء حركة الخزنة
-        current_balance = self.safe.current_balance
-        # المصروفات تنقص رصيد الخزنة
-        balance_after = current_balance - self.amount
+        from django.db import transaction
+        from accounting.models import JournalEntry, JournalItem
+        from core.models import SystemSettings
 
-        safe_transaction = SafeTransaction(
-            safe=self.safe,
-            date=self.date,  # استخدام تاريخ المصروف
-            amount=self.amount,
-            transaction_type=SafeTransaction.EXPENSE,
-            description=f"مصروف: {self.category.name} - {self.payee}",
-            reference_number=self.number,
-            balance_before=current_balance,  # تعيين الرصيد قبل العملية
-            balance_after=balance_after  # تعيين الرصيد بعد العملية
-        )
+        settings = SystemSettings.get_settings()
+        total_with_vat = self.amount + self.vat_amount
 
-        safe_transaction.save()
-        self.created_transaction = safe_transaction
+        with transaction.atomic():
+            # إنشاء حركة الخزنة
+            current_balance = self.safe.current_balance
+            # المصروفات تنقص رصيد الخزنة (بالمبلغ الإجمالي)
+            balance_after = current_balance - total_with_vat
 
-        # تحديث حالة الترحيل
-        self.is_posted = True
-        self.save(update_fields=['is_posted', 'created_transaction'])
+            safe_transaction = SafeTransaction(
+                safe=self.safe,
+                date=self.date,
+                amount=total_with_vat,
+                transaction_type=SafeTransaction.EXPENSE,
+                description=f"مصروف: {self.category.name} - {self.payee}",
+                reference_number=self.number,
+                balance_before=current_balance,
+                balance_after=balance_after
+            )
+            safe_transaction.save()
+            self.created_transaction = safe_transaction
+
+            # إنشاء القيد المحاسبي التلقائي
+            expense_acc = self.category.account or settings.default_expense_account
+            if expense_acc and self.safe.account:
+                journal_entry = JournalEntry.objects.create(
+                    entry_number=f"EXP-{self.number}-{timezone.now().strftime('%Y%m%d%H%M%S')}",
+                    date=self.date,
+                    description=f"قيد مصروف تلقائي: {self.category.name} - {self.payee}",
+                    reference=self.number
+                )
+
+                # 1. من حساب المصروف (الجانب المدين) - المبلغ بدون ضريبة
+                JournalItem.objects.create(
+                    journal_entry=journal_entry,
+                    account=expense_acc,
+                    debit=self.amount,
+                    cost_center=self.cost_center,
+                    memo=f"مصروف {self.category.name} مستلم بواسطة {self.payee}"
+                )
+
+                # 2. من حساب ضريبة المدخلات (إذا وجدت ضريبة)
+                if self.vat_amount > 0 and settings.vat_input_account:
+                    JournalItem.objects.create(
+                        journal_entry=journal_entry,
+                        account=settings.vat_input_account,
+                        debit=self.vat_amount,
+                        memo=f"ضريبة قيمة مضافة على مصروف {self.number}"
+                    )
+
+                # 3. إلى حساب الخزنة (الجانب الدائن) - المبلغ الإجمالي
+                JournalItem.objects.create(
+                    journal_entry=journal_entry,
+                    account=self.safe.account,
+                    credit=total_with_vat,
+                    memo=f"صرف نقدي للمصروف {self.number}"
+                )
+
+                journal_entry.post()
+
+            # تحديث حالة الترحيل
+            self.is_posted = True
+            self.save(update_fields=['is_posted', 'created_transaction'])
 
         return True
 
@@ -752,6 +804,9 @@ class Income(models.Model):
     number = models.CharField(_("رقم المستند"), max_length=50, blank=True)
     date = models.DateTimeField(_("تاريخ المستند"), default=timezone.now)
     amount = models.DecimalField(_("المبلغ"), max_digits=15, decimal_places=2)
+    vat_amount = models.DecimalField(_("قيمة الضريبة"), max_digits=15, decimal_places=2, default=0)
+    cost_center = models.ForeignKey('accounting.CostCenter', on_delete=models.SET_NULL, null=True, blank=True,
+                                  related_name='incomes', verbose_name=_("مركز التكلفة"))
     category = models.ForeignKey(IncomeCategory, on_delete=models.PROTECT, related_name='incomes',
                                verbose_name=_("قسم الإيرادات"))
     safe = models.ForeignKey(Safe, on_delete=models.CASCADE, related_name='incomes',
@@ -783,32 +838,77 @@ class Income(models.Model):
             self.post_income()
 
     def post_income(self):
-        """ترحيل الإيراد وإنشاء المعاملة المالية المرتبطة"""
+        """ترحيل الإيراد وإنشاء المعاملة المالية المرتبطة والقيود المحاسبية"""
         if self.is_posted and self.created_transaction:
             return False
 
-        # إنشاء حركة الخزنة
-        current_balance = self.safe.current_balance
-        # الإيرادات تزيد رصيد الخزنة
-        balance_after = current_balance + self.amount
+        from django.db import transaction
+        from accounting.models import JournalEntry, JournalItem
+        from core.models import SystemSettings
 
-        safe_transaction = SafeTransaction(
-            safe=self.safe,
-            date=self.date,  # استخدام تاريخ الإيراد
-            amount=self.amount,
-            transaction_type=SafeTransaction.INCOME,
-            description=f"إيراد: {self.category.name} - {self.payer}",
-            reference_number=self.number,
-            balance_before=current_balance,  # تعيين الرصيد قبل العملية
-            balance_after=balance_after  # تعيين الرصيد بعد العملية
-        )
+        settings = SystemSettings.get_settings()
+        total_with_vat = self.amount + self.vat_amount
 
-        safe_transaction.save()
-        self.created_transaction = safe_transaction
+        with transaction.atomic():
+            # إنشاء حركة الخزنة
+            current_balance = self.safe.current_balance
+            # الإيرادات تزيد رصيد الخزنة (بالمبلغ الإجمالي)
+            balance_after = current_balance + total_with_vat
 
-        # تحديث حالة الترحيل
-        self.is_posted = True
-        self.save(update_fields=['is_posted', 'created_transaction'])
+            safe_transaction = SafeTransaction(
+                safe=self.safe,
+                date=self.date,
+                amount=total_with_vat,
+                transaction_type=SafeTransaction.INCOME,
+                description=f"إيراد: {self.category.name} - {self.payer}",
+                reference_number=self.number,
+                balance_before=current_balance,
+                balance_after=balance_after
+            )
+            safe_transaction.save()
+            self.created_transaction = safe_transaction
+
+            # إنشاء القيد المحاسبي التلقائي
+            income_acc = self.category.account or settings.default_income_account
+            if income_acc and self.safe.account:
+                journal_entry = JournalEntry.objects.create(
+                    entry_number=f"INC-{self.number}-{timezone.now().strftime('%Y%m%d%H%M%S')}",
+                    date=self.date,
+                    description=f"قيد إيراد تلقائي: {self.category.name} - {self.payer}",
+                    reference=self.number
+                )
+
+                # 1. من حساب الخزنة (الجانب المدين) - المبلغ الإجمالي
+                JournalItem.objects.create(
+                    journal_entry=journal_entry,
+                    account=self.safe.account,
+                    debit=total_with_vat,
+                    memo=f"تحصيل نقدي للإيراد {self.number}"
+                )
+
+                # 2. إلى حساب الإيراد (الجانب الدائن) - المبلغ بدون ضريبة
+                JournalItem.objects.create(
+                    journal_entry=journal_entry,
+                    account=income_acc,
+                    credit=self.amount,
+                    cost_center=self.cost_center,
+                    memo=f"إيراد {self.category.name} من {self.payer}"
+                )
+
+                # 3. إلى حساب ضريبة المخرجات (إذا وجدت ضريبة)
+                if self.vat_amount > 0 and settings.vat_output_account:
+                    JournalItem.objects.create(
+                        journal_entry=journal_entry,
+                        account=settings.vat_output_account,
+                        credit=self.vat_amount,
+                        memo=f"ضريبة قيمة مضافة على إيراد {self.number}"
+                    )
+
+                journal_entry.post()
+
+            # تحديث حالة الترحيل
+            self.is_posted = True
+            self.save(update_fields=['is_posted', 'created_transaction'])
 
         return True
 
@@ -1021,17 +1121,26 @@ class StorePermit(models.Model):
         return f"{self.get_permit_type_display()} - {self.number}"
 
     def post_permit(self):
-        """ترحيل الإذن وإنشاء حركات المنتجات المرتبطة"""
+        """ترحيل الإذن وإنشاء حركات المنتجات المرتبطة والقيود المحاسبية"""
         if self.is_posted:
             return False
 
         from django.db import transaction
+        from accounting.models import JournalEntry, JournalItem
+        from core.models import SystemSettings
+
+        settings = SystemSettings.get_settings()
 
         with transaction.atomic():
+            total_value = 0
             # إنشاء حركات المنتجات لكل بند في الإذن
             for item in self.items.all():
                 # حساب الكمية بالوحدة الأساسية
                 base_quantity = item.quantity * item.product_unit.conversion_factor
+                
+                # قيمة البند (استخدام سعر الشراء لتقييم المخزون)
+                item_value = item.quantity * (item.product_unit.purchase_price or 0)
+                total_value += item_value
 
                 # تحديد نوع الحركة بناءً على نوع الإذن
                 if self.permit_type == self.ISSUE:
@@ -1046,14 +1155,12 @@ class StorePermit(models.Model):
 
                 # حساب الرصيد بعد العملية
                 if self.permit_type == self.ISSUE:
-                    # صرف ينقص الرصيد
                     balance_after = current_balance - base_quantity
                 else:  # RECEIVE
-                    # استلام يزيد الرصيد
                     balance_after = current_balance + base_quantity
 
                 # إنشاء حركة المنتج
-                product_transaction = ProductTransaction(
+                product_transaction = ProductTransaction.objects.create(
                     product=item.product,
                     date=self.date,
                     quantity=item.quantity,
@@ -1067,8 +1174,6 @@ class StorePermit(models.Model):
                     balance_after=balance_after
                 )
 
-                product_transaction.save()
-
                 # ربط حركة المنتج بالإذن
                 item.created_transaction = product_transaction
                 item.save(update_fields=['created_transaction'])
@@ -1076,6 +1181,68 @@ class StorePermit(models.Model):
                 # تحديث رصيد المنتج
                 item.product.current_balance = balance_after
                 item.product.save(update_fields=['current_balance'])
+
+            # إنشاء القيد المحاسبي إذا توفرت الحسابات
+            if self.store.account and total_value > 0:
+                journal_entry = JournalEntry.objects.create(
+                    entry_number=f"STR-{self.number}-{timezone.now().strftime('%Y%m%d%H%M%S')}",
+                    date=self.date,
+                    description=f"قيد مخزني تلقائي: {self.get_permit_type_display()} - {self.number}",
+                    reference=self.number
+                )
+                
+                if self.permit_type == self.RECEIVE:
+                    # استلام: من حساب المخزون (مدين) إلى حساب المشتريات (دائن)
+                    JournalItem.objects.create(
+                        journal_entry=journal_entry,
+                        account=self.store.account,
+                        debit=total_value,
+                        memo=f"استلام بضاعة - إذن رقم {self.number}"
+                    )
+                    
+                    # استخدام حساب المشتريات من الإعدادات
+                    purchases_acc = settings.purchases_account
+                    if not purchases_acc:
+                        from accounting.models import Account
+                        purchases_acc = Account.objects.filter(code='3101').first()
+                        
+                    if purchases_acc:
+                        JournalItem.objects.create(
+                            journal_entry=journal_entry,
+                            account=purchases_acc,
+                            credit=total_value,
+                            memo=f"مقابل استلام بضاعة - إذن رقم {self.number}"
+                        )
+                else:
+                    # صرف: من حساب تكلفة المبيعات (مدين) إلى حساب المخزون (دائن)
+                    # محاولة الحصول على حساب التكلفة من أول صنف أو من الإعدادات
+                    cogs_acc = settings.cogs_account
+                    if not cogs_acc:
+                        first_item = self.items.first()
+                        if first_item and first_item.product.category:
+                            cogs_acc = first_item.product.category.cogs_account
+                    
+                    if not cogs_acc:
+                        from accounting.models import Account
+                        cogs_acc = Account.objects.filter(code='4101').first()
+
+                    if cogs_acc:
+                        JournalItem.objects.create(
+                            journal_entry=journal_entry,
+                            account=cogs_acc,
+                            debit=total_value,
+                            memo=f"تكلفة بضاعة منصرفة - إذن رقم {self.number}"
+                        )
+                        JournalItem.objects.create(
+                            journal_entry=journal_entry,
+                            account=self.store.account,
+                            credit=total_value,
+                            memo=f"صرف بضاعة - إذن رقم {self.number}"
+                        )
+                
+                # ترحيل القيد إذا كان متوازناً ولدينا طرفين
+                if journal_entry.items.count() >= 2:
+                    journal_entry.post()
 
             # تحديث حالة الترحيل
             self.is_posted = True
