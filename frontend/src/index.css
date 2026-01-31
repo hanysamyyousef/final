@@ -1,0 +1,18 @@
+@import "tailwindcss";
+
+:root {
+  direction: rtl;
+  font-family: 'Cairo', sans-serif;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background-color: #f8fafc;
+}
+
+/* Custom styles to ensure Cairo font is applied everywhere */
+* {
+  font-family: 'Cairo', sans-serif !important;
+}

@@ -1,7 +1,15 @@
-from django.urls import path
-from . import views
+from django.urls import path, include
+from rest_framework.routers import DefaultRouter
+from . import views, api_views
+
+router = DefaultRouter()
+router.register(r'invoices', api_views.InvoiceViewSet)
+router.register(r'invoice-items', api_views.InvoiceItemViewSet)
 
 urlpatterns = [
+    # API URLs
+    path('api/', include(router.urls)),
+
     # مسارات الفواتير
     path('invoices/', views.invoice_list, name='invoice_list'),
     path('invoices/create/', views.invoice_create, name='invoice_create'),

@@ -108,7 +108,29 @@ class Contact(models.Model):
     address = models.TextField(_("العنوان"), blank=True, null=True)
     email = models.EmailField(_("البريد الإلكتروني"), blank=True, null=True)
     tax_number = models.CharField(_("الرقم الضريبي"), max_length=50, blank=True, null=True)
+    
+    DEBIT = 'debit'
+    CREDIT = 'credit'
+    BALANCE_TYPE_CHOICES = [
+        (DEBIT, _("مدين")),
+        (CREDIT, _("دائن")),
+    ]
+
+    RETAIL = 'retail'
+    WHOLESALE = 'wholesale'
+    DISTRIBUTOR = 'distributor'
+    SUPPLIER_PRICE = 'supplier'
+    PRICING_SYSTEM_CHOICES = [
+        (RETAIL, _("مستهلك")),
+        (WHOLESALE, _("جملة")),
+        (DISTRIBUTOR, _("مورد")),
+        (SUPPLIER_PRICE, _("سعر المورد")),
+    ]
+
     initial_balance = models.DecimalField(_("الرصيد الافتتاحي"), max_digits=15, decimal_places=2, default=0)
+    initial_balance_date = models.DateField(_("تاريخ الرصيد الافتتاحي"), blank=True, null=True)
+    initial_balance_type = models.CharField(_("نوع الرصيد الافتتاحي"), max_length=10, choices=BALANCE_TYPE_CHOICES, default=DEBIT)
+    pricing_system = models.CharField(_("نظام التسعير"), max_length=20, choices=PRICING_SYSTEM_CHOICES, default=RETAIL)
     current_balance = models.DecimalField(_("الرصيد الحالي"), max_digits=15, decimal_places=2, default=0)
     credit_limit = models.DecimalField(_("حد الائتمان"), max_digits=15, decimal_places=2, default=0)
     notes = models.TextField(_("ملاحظات"), blank=True, null=True)

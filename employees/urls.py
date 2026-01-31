@@ -1,9 +1,17 @@
-from django.urls import path
-from . import views
+from django.urls import path, include
+from rest_framework.routers import DefaultRouter
+from . import views, api_views
 
 app_name = 'employees'
 
+router = DefaultRouter()
+router.register(r'employees', api_views.EmployeeViewSet)
+router.register(r'attendance', api_views.AttendanceViewSet)
+
 urlpatterns = [
+    # API URLs
+    path('api/', include(router.urls)),
+
     # صفحات الموظفين
     path('', views.employee_list, name='employee_list'),
     path('employee/<int:pk>/', views.employee_detail, name='employee_detail'),

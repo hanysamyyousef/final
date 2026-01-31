@@ -1,7 +1,18 @@
-from django.urls import path
-from . import views
+from django.urls import path, include
+from rest_framework.routers import DefaultRouter
+from . import views, api_views
+
+router = DefaultRouter()
+router.register(r'expense-categories', api_views.ExpenseCategoryViewSet)
+router.register(r'income-categories', api_views.IncomeCategoryViewSet)
+router.register(r'safe-transactions', api_views.SafeTransactionViewSet)
+router.register(r'contact-transactions', api_views.ContactTransactionViewSet)
+router.register(r'product-transactions', api_views.ProductTransactionViewSet)
+router.register(r'expenses', api_views.ExpenseViewSet)
+router.register(r'incomes', api_views.IncomeViewSet)
 
 urlpatterns = [
+    path('api/', include(router.urls)),
     # Product Transaction URLs
     path('inventory/', views.product_inventory, name='product_inventory'),
     path('transactions/', views.product_transaction_list, name='product_transaction_list'),

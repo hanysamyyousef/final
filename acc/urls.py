@@ -19,21 +19,24 @@ from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
+from rest_framework_simplejwt.views import (
+    TokenObtainPairView,
+    TokenRefreshView,
+)
 from products.views import product_info_api
 from . import views
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('', include('core.urls')),
     path('users/', include('users.urls')),
     path('accounts/', include('allauth.urls')),
     path('products/', include('products.urls')),
     path('finances/', include('finances.urls')),
-    path('', include('invoices.urls')),
+    path('invoices/', include('invoices.urls')),
     path('employees/', include('employees.urls')),
-    path("farm/", views.farm_home, name="farm_home"),
-    path("hatchery/", include("hatchery.urls")),
-    path("inventory/", include("inventory.urls")),
     path("accounting/", include("accounting.urls")),
 
     # إضافة مسارات API

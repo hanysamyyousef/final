@@ -1,8 +1,18 @@
-from django.urls import path
-from . import views
+from django.urls import path, include
+from rest_framework.routers import DefaultRouter
+from . import views, api_views
+
+router = DefaultRouter()
+router.register(r'companies', api_views.CompanyViewSet)
+router.register(r'branches', api_views.BranchViewSet)
+router.register(r'stores', api_views.StoreViewSet)
+router.register(r'safes', api_views.SafeViewSet)
+router.register(r'contacts', api_views.ContactViewSet)
 
 urlpatterns = [
+    path('api/', include(router.urls)),
     path('', views.home, name='home'),
+    path('api/dashboard-stats/', api_views.DashboardStatsAPIView.as_view(), name='api_dashboard_stats'),
 
     # Company URLs
     path('companies/', views.company_list, name='company_list'),
