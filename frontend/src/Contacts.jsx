@@ -47,21 +47,26 @@ const Contacts = () => {
   const fetchContacts = async () => {
     try {
       setLoading(true);
-      const [contactsRes, statsRes] = await Promise.all([
-        api.get('/api/contacts/'),
-        api.get('/api/dashboard-stats/')
-      ]);
-      setContacts(contactsRes.data);
-      if (statsRes.data) {
-        if (statsRes.data.top_customers) {
-          setTopCustomers(statsRes.data.top_customers);
+      // Fetch contacts separately to ensure they show even if stats fail
+      const contactsRes = await api.get('/api/contacts/');
+      setContacts(Array.isArray(contactsRes.data) ? contactsRes.data : []);
+      
+      // Fetch stats separately
+      try {
+        const statsRes = await api.get('/api/dashboard-stats/');
+        if (statsRes.data) {
+          if (statsRes.data.top_customers) {
+            setTopCustomers(statsRes.data.top_customers);
+          }
+          if (statsRes.data.debt_summary) {
+            setDebtSummary(statsRes.data.debt_summary);
+          }
         }
-        if (statsRes.data.debt_summary) {
-          setDebtSummary(statsRes.data.debt_summary);
-        }
+      } catch (statsErr) {
+        console.error('Error fetching stats:', statsErr);
       }
     } catch (err) {
-      console.error('Error fetching data:', err);
+      console.error('Error fetching contacts:', err);
     } finally {
       setLoading(false);
     }
@@ -231,8 +236,8 @@ const Contacts = () => {
 
                 <div className="mt-4 flex justify-between items-center bg-gray-50 p-3 rounded-xl">
                   <div className="text-xs text-gray-500 font-medium">الرصيد الحالي</div>
-                  <div className={`text-sm font-black ${contact.balance < 0 ? 'text-red-600' : 'text-green-600'}`}>
-                    {contact.balance || 0} ج.م
+                  <div className={`text-sm font-black ${(contact.current_balance || 0) < 0 ? 'text-red-600' : 'text-green-600'}`}>
+                    {contact.current_balance || 0} ج.م
                   </div>
                 </div>
               </div>

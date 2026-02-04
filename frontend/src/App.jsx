@@ -11,6 +11,8 @@ import JournalEntries from './JournalEntries';
 import Inventory from './Inventory';
 import Contacts from './Contacts';
 import Employees from './Employees';
+import Representatives from './Representatives';
+import Drivers from './Drivers';
 import Finances from './Finances';
 import Reports from './Reports';
 import Settings from './Settings';
@@ -136,6 +138,30 @@ function App() {
             isAuthenticated ? (
               <Layout onLogout={handleLogout}>
                 <Employees />
+              </Layout>
+            ) : (
+              <Navigate to="/login" />
+            )
+          } 
+        />
+        <Route 
+          path="/representatives" 
+          element={
+            isAuthenticated ? (
+              <Layout onLogout={handleLogout}>
+                <Representatives />
+              </Layout>
+            ) : (
+              <Navigate to="/login" />
+            )
+          } 
+        />
+        <Route 
+          path="/drivers" 
+          element={
+            isAuthenticated ? (
+              <Layout onLogout={handleLogout}>
+                <Drivers />
               </Layout>
             ) : (
               <Navigate to="/login" />

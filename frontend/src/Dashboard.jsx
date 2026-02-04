@@ -91,10 +91,10 @@ const Dashboard = () => {
       </header>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard title="إجمالي المبيعات" value={`${stats.sale_invoices_count} فاتورة`} icon={<FileText />} color="bg-blue-600" trend={12} />
-        <StatCard title="إجمالي المشتريات" value={`${stats.purchase_invoices_count} فاتورة`} icon={<ArrowDownLeft />} color="bg-rose-600" trend={-5} />
-        <StatCard title="عدد المنتجات" value={stats.products_count} icon={<Package />} color="bg-amber-600" trend={8} />
-        <StatCard title="إجمالي العملاء" value={stats.customers_count} icon={<Users />} color="bg-indigo-600" trend={15} />
+        <StatCard title="إجمالي المبيعات" value={`${stats.sale_invoices_count || 0} فاتورة`} icon={<FileText />} color="bg-blue-600" trend={12} />
+    <StatCard title="إجمالي المشتريات" value={`${stats.purchase_invoices_count || 0} فاتورة`} icon={<ArrowDownLeft />} color="bg-rose-600" trend={-5} />
+    <StatCard title="عدد المنتجات" value={stats.products_count || 0} icon={<Package />} color="bg-amber-600" trend={8} />
+    <StatCard title="إجمالي العملاء" value={stats.customers_count || 0} icon={<Users />} color="bg-indigo-600" trend={15} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">

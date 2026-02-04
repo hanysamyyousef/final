@@ -8,6 +8,8 @@ router.register(r'branches', api_views.BranchViewSet)
 router.register(r'stores', api_views.StoreViewSet)
 router.register(r'safes', api_views.SafeViewSet)
 router.register(r'contacts', api_views.ContactViewSet)
+router.register(r'representatives', api_views.RepresentativeViewSet)
+router.register(r'drivers', api_views.DriverViewSet)
 
 urlpatterns = [
     path('api/', include(router.urls)),

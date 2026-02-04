@@ -15,6 +15,7 @@ import {
   BookOpen,
   BarChart3,
   Wallet,
+  Truck,
   ChevronDown
 } from 'lucide-react';
 
@@ -45,6 +46,8 @@ const Layout = ({ children, onLogout }) => {
     { id: 'products', label: 'المنتجات', to: '/products', icon: <Package size={18} /> },
     { id: 'invoices', label: 'الفواتير', to: '/invoices', icon: <FileText size={18} /> },
     { id: 'employees', label: 'الموظفين', to: '/employees', icon: <Users size={18} /> },
+    { id: 'representatives', label: 'المناديب', to: '/representatives', icon: <Users size={18} /> },
+    { id: 'drivers', label: 'السائقين', to: '/drivers', icon: <Truck size={18} /> },
     { id: 'finances', label: 'المالية', to: '/finances', icon: <Wallet size={18} /> },
     { id: 'accounting', label: 'الحسابات', to: '/accounting', icon: <Calculator size={18} /> },
     { id: 'journal', label: 'القيود', to: '/journal-entries', icon: <BookOpen size={18} /> },

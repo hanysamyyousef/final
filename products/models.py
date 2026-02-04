@@ -53,6 +53,11 @@ class Product(models.Model):
     def __str__(self):
         return self.name
 
+    def save(self, *args, **kwargs):
+        if not self.pk:  # On creation
+            self.current_balance = self.initial_balance
+        super().save(*args, **kwargs)
+
 class ProductUnit(models.Model):
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='units', verbose_name=_("المنتج"))
     unit = models.ForeignKey(Unit, on_delete=models.CASCADE, related_name='product_units', verbose_name=_("الوحدة"))

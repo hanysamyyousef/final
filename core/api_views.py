@@ -16,7 +16,9 @@ from .serializers import (
     BranchSerializer, 
     StoreSerializer, 
     SafeSerializer, 
-    ContactSerializer
+    ContactSerializer,
+    RepresentativeSerializer,
+    DriverSerializer
 )
 
 class DashboardStatsAPIView(APIView):
@@ -58,37 +60,45 @@ class DashboardStatsAPIView(APIView):
         ]
         
         # إضافة ملخص المديونيات
-        total_customers_balance = Contact.objects.filter(contact_type=Contact.CUSTOMER).aggregate(total=Sum('current_balance'))['total'] or 0
-        total_suppliers_balance = Contact.objects.filter(contact_type=Contact.SUPPLIER).aggregate(total=Sum('current_balance'))['total'] or 0
-        
-        stats['debt_summary'] = {
-            'total_customers_balance': abs(float(total_customers_balance)),
-            'total_suppliers_balance': abs(float(total_suppliers_balance)),
-            'total_debt': abs(float(total_customers_balance)) + abs(float(total_suppliers_balance))
-        }
+        try:
+            total_customers_balance = Contact.objects.filter(contact_type=Contact.CUSTOMER).aggregate(total=Sum('current_balance'))['total'] or 0
+            total_suppliers_balance = Contact.objects.filter(contact_type=Contact.SUPPLIER).aggregate(total=Sum('current_balance'))['total'] or 0
+            
+            stats['debt_summary'] = {
+                'total_customers_balance': abs(float(total_customers_balance)),
+                'total_suppliers_balance': abs(float(total_suppliers_balance)),
+                'total_debt': abs(float(total_customers_balance)) + abs(float(total_suppliers_balance))
+            }
+        except Exception as e:
+            print(f"Error calculating debt summary: {e}")
+            stats['debt_summary'] = {'total_customers_balance': 0, 'total_suppliers_balance': 0, 'total_debt': 0}
         
         # إضافة بيانات الرسم البياني (آخر 6 أشهر)
-        six_months_ago = timezone.now() - timedelta(days=180)
-        monthly_stats = Invoice.objects.filter(date__gte=six_months_ago)\
-            .annotate(month=TruncMonth('date'))\
-            .values('month')\
-            .annotate(
-                sales=Sum('net_amount', filter=Q(invoice_type=Invoice.SALE)),
-                expenses=Sum('net_amount', filter=Q(invoice_type=Invoice.PURCHASE))
-            ).order_by('month')
+        try:
+            six_months_ago = timezone.now() - timedelta(days=180)
+            monthly_stats = Invoice.objects.filter(date__gte=six_months_ago)\
+                .annotate(month=TruncMonth('date'))\
+                .values('month')\
+                .annotate(
+                    sales=Sum('net_amount', filter=Q(invoice_type=Invoice.SALE)),
+                    expenses=Sum('net_amount', filter=Q(invoice_type=Invoice.PURCHASE))
+                ).order_by('month')
+                
+            months_map = {
+                1: 'يناير', 2: 'فبراير', 3: 'مارس', 4: 'أبريل', 5: 'مايو', 6: 'يونيو',
+                7: 'يوليو', 8: 'أغسطس', 9: 'سبتمبر', 10: 'أكتوبر', 11: 'نوفمبر', 12: 'ديسمبر'
+            }
             
-        months_map = {
-            1: 'يناير', 2: 'فبراير', 3: 'مارس', 4: 'أبريل', 5: 'مايو', 6: 'يونيو',
-            7: 'يوليو', 8: 'أغسطس', 9: 'سبتمبر', 10: 'أكتوبر', 11: 'نوفمبر', 12: 'ديسمبر'
-        }
-        
-        stats['chart_data'] = [
-            {
-                'name': months_map[item['month'].month],
-                'sales': float(item['sales'] or 0),
-                'expenses': float(item['expenses'] or 0)
-            } for item in monthly_stats
-        ]
+            stats['chart_data'] = [
+                {
+                    'name': months_map[item['month'].month] if item['month'] else 'غير معروف',
+                    'sales': float(item['sales'] or 0),
+                    'expenses': float(item['expenses'] or 0)
+                } for item in monthly_stats
+            ]
+        except Exception as e:
+            print(f"Error generating chart data: {e}")
+            stats['chart_data'] = []
         
         return Response(stats)
 
@@ -122,4 +132,14 @@ class SafeViewSet(viewsets.ModelViewSet):
 class ContactViewSet(viewsets.ModelViewSet):
     queryset = Contact.objects.all()
     serializer_class = ContactSerializer
+    permission_classes = [IsAuthenticated]
+
+class RepresentativeViewSet(viewsets.ModelViewSet):
+    queryset = Representative.objects.all()
+    serializer_class = RepresentativeSerializer
+    permission_classes = [IsAuthenticated]
+
+class DriverViewSet(viewsets.ModelViewSet):
+    queryset = Driver.objects.all()
+    serializer_class = DriverSerializer
     permission_classes = [IsAuthenticated]

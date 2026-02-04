@@ -28,3 +28,13 @@ class ContactSerializer(serializers.ModelSerializer):
     class Meta:
         model = Contact
         fields = '__all__'
+
+class RepresentativeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Representative
+        fields = '__all__'
+
+class DriverSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Driver
+        fields = '__all__'
