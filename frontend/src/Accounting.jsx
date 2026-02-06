@@ -5,6 +5,8 @@ import {
   Calculator, 
   Search, 
   ChevronRight,
+  ChevronDown,
+  ChevronLeft,
   MoreVertical,
   Calendar,
   DollarSign,
@@ -15,7 +17,9 @@ import {
   BookOpen,
   Edit2,
   Trash2,
-  X
+  X,
+  Folder,
+  FolderOpen
 } from 'lucide-react';
 
 const Accounting = () => {
@@ -24,6 +28,7 @@ const Accounting = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingAccount, setEditingAccount] = useState(null);
+  const [expandedAccounts, setExpandedAccounts] = useState({});
   const [formData, setFormData] = useState({
     name: '',
     code: '',
@@ -32,11 +37,48 @@ const Accounting = () => {
     is_selectable: true
   });
 
+  const toggleExpand = (accountId) => {
+    setExpandedAccounts(prev => ({
+      ...prev,
+      [accountId]: !prev[accountId]
+    }));
+  };
+
+  const buildAccountTree = (flatAccounts) => {
+    const accountMap = {};
+    const roots = [];
+
+    // Create a map of all accounts
+    flatAccounts.forEach(account => {
+      accountMap[account.id] = { ...account, children: [] };
+    });
+
+    // Build the tree
+    flatAccounts.forEach(account => {
+      if (account.parent) {
+        if (accountMap[account.parent]) {
+          accountMap[account.parent].children.push(accountMap[account.id]);
+        }
+      } else {
+        roots.push(accountMap[account.id]);
+      }
+    });
+
+    return roots;
+  };
+
   const fetchAccounts = async () => {
     try {
       setLoading(true);
       const response = await api.get('/accounting/api/accounts/');
       setAccounts(response.data);
+      
+      // Auto-expand root accounts by default
+      const initialExpanded = {};
+      response.data.forEach(acc => {
+        if (!acc.parent) initialExpanded[acc.id] = true;
+      });
+      setExpandedAccounts(initialExpanded);
     } catch (err) {
       console.error('Error fetching accounts:', err);
     } finally {
@@ -102,11 +144,6 @@ const Accounting = () => {
     }
   };
 
-  const filteredAccounts = accounts.filter(account => 
-    account.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    account.code.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
   const getAccountTypeColor = (type) => {
     switch (type) {
       case 'asset': return 'bg-blue-50 text-blue-600';
@@ -128,6 +165,94 @@ const Accounting = () => {
     };
     return types[type] || type;
   };
+
+  const AccountRow = ({ account, level = 0 }) => {
+    const hasChildren = account.children && account.children.length > 0;
+    const isExpanded = expandedAccounts[account.id];
+    const isFolder = !account.is_selectable || hasChildren;
+
+    const matchesSearch = searchTerm === '' || 
+      account.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      account.code.toLowerCase().includes(searchTerm.toLowerCase());
+
+    if (searchTerm !== '' && !matchesSearch && !account.children.some(c => c.name.toLowerCase().includes(searchTerm.toLowerCase()) || c.code.toLowerCase().includes(searchTerm.toLowerCase()))) {
+      return null;
+    }
+
+    return (
+      <React.Fragment>
+        <tr className="hover:bg-blue-50/30 transition group border-b border-gray-50">
+          <td className="p-4 text-sm font-mono text-gray-500">
+            <div className="flex items-center gap-2" style={{ paddingRight: `${level * 24}px` }}>
+              {isFolder && (
+                <button 
+                  onClick={() => toggleExpand(account.id)}
+                  className="p-1 hover:bg-gray-100 rounded transition text-gray-400"
+                >
+                  {isExpanded ? <ChevronDown size={14} /> : <ChevronLeft size={14} />}
+                </button>
+              )}
+              {!isFolder && <div className="w-6" />}
+              {account.code}
+            </div>
+          </td>
+          <td className="p-4">
+            <div className="flex items-center gap-3">
+              <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${getAccountTypeColor(account.account_type)}`}>
+                {isFolder ? (
+                  isExpanded ? <FolderOpen size={16} /> : <Folder size={16} />
+                ) : (
+                  <BookOpen size={16} />
+                )}
+              </div>
+              <span className={`font-bold ${isFolder ? 'text-gray-900' : 'text-gray-700'}`}>
+                {account.name}
+              </span>
+            </div>
+          </td>
+          <td className="p-4 text-center">
+            <span className={`text-[10px] font-bold px-2 py-1 rounded-md ${getAccountTypeColor(account.account_type)}`}>
+              {getAccountTypeLabel(account.account_type)}
+            </span>
+          </td>
+          <td className="p-4 text-left">
+            <span className={`font-black ${parseFloat(account.balance) < 0 ? 'text-rose-600' : 'text-gray-900'}`}>
+              {Math.abs(account.balance).toLocaleString('ar-EG', { minimumFractionDigits: 2 })}
+              <span className="text-[10px] text-gray-400 font-medium mr-1">ج.م</span>
+            </span>
+          </td>
+          <td className="p-4 text-center">
+            <span className={`px-2 py-1 rounded-lg text-[10px] font-bold ${account.is_selectable ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-400'}`}>
+              {account.is_selectable ? 'نشط' : 'حساب أب'}
+            </span>
+          </td>
+          <td className="p-4 text-left">
+            <div className="flex justify-end gap-2">
+              <button 
+                onClick={() => handleOpenModal(account)}
+                className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition" 
+                title="تعديل"
+              >
+                <Edit2 size={16} />
+              </button>
+              <button 
+                onClick={() => handleDelete(account.id)}
+                className="p-2 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                title="حذف"
+              >
+                <Trash2 size={16} />
+              </button>
+            </div>
+          </td>
+        </tr>
+        {isExpanded && account.children && account.children.map(child => (
+          <AccountRow key={child.id} account={child} level={level + 1} />
+        ))}
+      </React.Fragment>
+    );
+  };
+
+  const accountTree = buildAccountTree(accounts);
 
   if (loading && accounts.length === 0) return (
     <div className="flex items-center justify-center min-h-[400px]">
@@ -209,12 +334,12 @@ const Accounting = () => {
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
+      <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm overflow-x-auto">
         <table className="w-full text-right border-collapse">
           <thead>
             <tr className="bg-gray-50 border-b border-gray-100">
-              <th className="p-4 font-bold text-gray-600 text-sm">كود الحساب</th>
-              <th className="p-4 font-bold text-gray-600 text-sm">اسم الحساب</th>
+              <th className="p-4 font-bold text-gray-600 text-sm min-w-[200px]">كود الحساب</th>
+              <th className="p-4 font-bold text-gray-600 text-sm min-w-[250px]">اسم الحساب</th>
               <th className="p-4 font-bold text-gray-600 text-sm text-center">النوع</th>
               <th className="p-4 font-bold text-gray-600 text-sm text-left">الرصيد</th>
               <th className="p-4 font-bold text-gray-600 text-sm text-center">الحالة</th>
@@ -222,52 +347,8 @@ const Accounting = () => {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
-            {filteredAccounts.map((account) => (
-              <tr key={account.id} className="hover:bg-blue-50/30 transition group">
-                <td className="p-4 text-sm font-mono text-gray-500">{account.code}</td>
-                <td className="p-4">
-                  <div className="flex items-center gap-3">
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${getAccountTypeColor(account.account_type)}`}>
-                      <BookOpen size={16} />
-                    </div>
-                    <span className="font-bold text-gray-800">{account.name}</span>
-                  </div>
-                </td>
-                <td className="p-4 text-center">
-                  <span className={`text-[10px] font-bold px-2 py-1 rounded-md ${getAccountTypeColor(account.account_type)}`}>
-                    {getAccountTypeLabel(account.account_type)}
-                  </span>
-                </td>
-                <td className="p-4 text-left">
-                  <span className={`font-black ${parseFloat(account.balance) < 0 ? 'text-rose-600' : 'text-gray-900'}`}>
-                    {Math.abs(account.balance).toLocaleString('ar-EG', { minimumFractionDigits: 2 })}
-                    <span className="text-[10px] text-gray-400 font-medium mr-1">ج.م</span>
-                  </span>
-                </td>
-                <td className="p-4 text-center">
-                  <span className={`px-2 py-1 rounded-lg text-[10px] font-bold ${account.is_selectable ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-400'}`}>
-                    {account.is_selectable ? 'نشط' : 'حساب أب'}
-                  </span>
-                </td>
-                <td className="p-4 text-left">
-                  <div className="flex justify-end gap-2">
-                    <button 
-                      onClick={() => handleOpenModal(account)}
-                      className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition" 
-                      title="تعديل"
-                    >
-                      <Edit2 size={16} />
-                    </button>
-                    <button 
-                      onClick={() => handleDelete(account.id)}
-                      className="p-2 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
-                      title="حذف"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                </td>
-              </tr>
+            {accountTree.map((account) => (
+              <AccountRow key={account.id} account={account} />
             ))}
           </tbody>
         </table>

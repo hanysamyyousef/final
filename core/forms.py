@@ -80,7 +80,7 @@ class ContactForm(forms.ModelForm):
     class Meta:
         model = Contact
         fields = ['name', 'contact_type', 'phone', 'alternative_phone', 'address',
-                 'email', 'tax_number', 'initial_balance', 'credit_limit', 'notes']
+                 'email', 'tax_number', 'initial_balance', 'credit_limit', 'account', 'notes']
         widgets = {
             'name': forms.TextInput(attrs={'class': 'form-control'}),
             'contact_type': forms.Select(attrs={'class': 'form-select'}),
@@ -91,6 +91,7 @@ class ContactForm(forms.ModelForm):
             'tax_number': forms.TextInput(attrs={'class': 'form-control'}),
             'initial_balance': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
             'credit_limit': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
+            'account': forms.Select(attrs={'class': 'form-select'}),
             'notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
         }
 
