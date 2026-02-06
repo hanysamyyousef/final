@@ -1,9 +1,13 @@
+import os
+import shutil
+from datetime import datetime
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.db.models import Count, Sum, Q, DecimalField
 from django.db.models.functions import Coalesce, TruncMonth
 from decimal import Decimal
+from django.conf import settings as django_settings
 from core.models import Company, Branch, Store, Safe, Contact, Representative, Driver, SystemSettings
 from django.utils import timezone
 from datetime import timedelta
@@ -11,7 +15,7 @@ from products.models import Product, Category
 from invoices.models import Invoice
 from employees.models import Employee
 
-from rest_framework import viewsets
+from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from .serializers import (
     CompanySerializer, 
@@ -122,6 +126,35 @@ class SystemSettingsViewSet(viewsets.ModelViewSet):
         settings = SystemSettings.get_settings()
         serializer = self.get_serializer(settings)
         return Response(serializer.data)
+
+    @action(detail=False, methods=['post'])
+    def backup(self, request):
+        """إنشاء نسخة احتياطية من قاعدة البيانات"""
+        try:
+            # مسار قاعدة البيانات الحالية
+            db_path = django_settings.BASE_DIR / 'db.sqlite3'
+            
+            # مجلد النسخ الاحتياطية
+            backup_dir = django_settings.BASE_DIR / 'backups'
+            if not os.path.exists(backup_dir):
+                os.makedirs(backup_dir)
+                
+            # اسم ملف النسخة الاحتياطية
+            timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+            backup_filename = f'backup_{timestamp}.sqlite3'
+            backup_path = backup_dir / backup_filename
+            
+            # نسخ الملف
+            shutil.copy2(db_path, backup_path)
+            
+            return Response({
+                'message': 'تم إنشاء النسخة الاحتياطية بنجاح',
+                'filename': backup_filename
+            }, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({
+                'error': f'فشل إنشاء النسخة الاحتياطية: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class CompanyViewSet(viewsets.ModelViewSet):
     queryset = Company.objects.all()

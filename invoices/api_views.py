@@ -73,6 +73,36 @@ class InvoiceViewSet(viewsets.ModelViewSet):
     serializer_class = InvoiceSerializer
     permission_classes = [IsAuthenticated]
 
+    @action(detail=False, methods=['get'])
+    def next_number(self, request):
+        invoice_type = request.query_params.get('type', 'sale')
+        
+        # البحث عن كل الفواتير من هذا النوع لاستخراج أكبر رقم عددي
+        all_invoices = Invoice.objects.filter(invoice_type=invoice_type)
+        
+        max_num = 0
+        import re
+        
+        for inv in all_invoices:
+            # استخراج الأرقام من رقم الفاتورة
+            nums = re.findall(r'\d+', inv.number)
+            if nums:
+                # نأخذ آخر مجموعة أرقام ونحولها لرقم
+                try:
+                    current_num = int(nums[-1])
+                    # إذا كان الرقم يبدو كطابع زمني (أكبر من 1000000000)، نتجاهله في الحساب التسلسلي
+                    if current_num < 1000000000:
+                        if current_num > max_num:
+                            max_num = current_num
+                except ValueError:
+                    continue
+        
+        next_num = max_num + 1
+        
+        # تنسيق الرقم الناتج (مثلاً INV-1 أو مجرد 1)
+        # سأستخدم الرقم المجرد حالياً ليكون بسيطاً كما طلب المستخدم
+        return Response({'next_number': str(next_num)})
+
     def get_queryset(self):
         queryset = Invoice.objects.all().order_by('-date')
         invoice_type = self.request.query_params.get('type')

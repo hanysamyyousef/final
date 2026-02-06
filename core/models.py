@@ -220,6 +220,10 @@ class SystemSettings(models.Model):
     show_driver_in_permit_report = models.BooleanField(_("إظهار حقل السائق في تقرير الأذونات"), default=True)
     show_representative_in_permit_report = models.BooleanField(_("إظهار حقل المندوب في تقرير الأذونات"), default=True)
 
+    # إعدادات النظام الإضافية
+    system_language = models.CharField(_("لغة النظام"), max_length=10, default='ar')
+    enable_notifications = models.BooleanField(_("تفعيل التنبيهات"), default=True)
+
     class Meta:
         verbose_name = _("إعدادات النظام")
         verbose_name_plural = _("إعدادات النظام")

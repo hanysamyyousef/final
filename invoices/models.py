@@ -26,6 +26,16 @@ class Invoice(models.Model):
         (CREDIT, _("آجل")),
     ]
 
+    DISCOUNT_TYPE_CHOICES = [
+        ('value', _("قيمة")),
+        ('percent', _("نسبة")),
+    ]
+
+    TAX_TYPE_CHOICES = [
+        ('value', _("قيمة")),
+        ('percent', _("نسبة")),
+    ]
+
     number = models.CharField(_("رقم الفاتورة"), max_length=50)
     date = models.DateTimeField(_("تاريخ الفاتورة"), default=timezone.now)
     invoice_type = models.CharField(_("نوع الفاتورة"), max_length=20, choices=INVOICE_TYPE_CHOICES)
@@ -39,8 +49,15 @@ class Invoice(models.Model):
                              verbose_name=_("السائق"), null=True, blank=True)
 
     total_amount = models.DecimalField(_("إجمالي الفاتورة"), max_digits=15, decimal_places=2, default=0)
-    discount_amount = models.DecimalField(_("مبلغ الخصم"), max_digits=15, decimal_places=2, default=0)
-    tax_amount = models.DecimalField(_("مبلغ الضريبة"), max_digits=15, decimal_places=2, default=0)
+    
+    discount_type = models.CharField(_("نوع الخصم"), max_length=10, choices=DISCOUNT_TYPE_CHOICES, default='value')
+    discount_value = models.DecimalField(_("قيمة/نسبة الخصم"), max_digits=15, decimal_places=2, default=0)
+    discount_amount = models.DecimalField(_("مبلغ الخصم النهائي"), max_digits=15, decimal_places=2, default=0)
+    
+    tax_type = models.CharField(_("نوع الضريبة"), max_length=10, choices=TAX_TYPE_CHOICES, default='value')
+    tax_value = models.DecimalField(_("قيمة/نسبة الضريبة"), max_digits=15, decimal_places=2, default=0)
+    tax_amount = models.DecimalField(_("مبلغ الضريبة النهائي"), max_digits=15, decimal_places=2, default=0)
+    
     net_amount = models.DecimalField(_("صافي الفاتورة"), max_digits=15, decimal_places=2, default=0)
 
     paid_amount = models.DecimalField(_("المبلغ المدفوع"), max_digits=15, decimal_places=2, default=0)
@@ -97,19 +114,32 @@ class Invoice(models.Model):
                 print(f"عدد معاملات المخزون: {product_transactions.count()}")
 
     def calculate_totals(self):
-        """حساب إجماليات الفاتورة من بنودها"""
-        # حساب الإجماليات من البنود
+        """حساب إجماليات الفاتورة من بنودها والخصومات العامة"""
         items = self.items.all()
 
         total_amount = sum(item.quantity * item.unit_price for item in items)
-        discount_amount = sum(item.discount_amount for item in items)
-        tax_amount = sum(item.tax_amount for item in items)
+        items_discount = sum(item.discount_amount for item in items)
+        items_tax = sum(item.tax_amount for item in items)
+
+        # حساب الخصم العالمي
+        global_discount_amount = 0
+        if self.discount_type == 'percent':
+            global_discount_amount = (total_amount * self.discount_value) / 100
+        else:
+            global_discount_amount = self.discount_value
+
+        # حساب الضريبة العالمية
+        global_tax_amount = 0
+        if self.tax_type == 'percent':
+            global_tax_amount = ((total_amount - global_discount_amount) * self.tax_value) / 100
+        else:
+            global_tax_amount = self.tax_value
 
         # تحديث قيم الفاتورة
         self.total_amount = total_amount
-        self.discount_amount = discount_amount
-        self.tax_amount = tax_amount
-        self.net_amount = total_amount - discount_amount + tax_amount
+        self.discount_amount = items_discount + global_discount_amount
+        self.tax_amount = items_tax + global_tax_amount
+        self.net_amount = total_amount - self.discount_amount + self.tax_amount
 
         # تحديث المدفوع والمتبقي بناءً على نوع الدفع
         if self.payment_type == self.CASH:
@@ -142,8 +172,9 @@ class Invoice(models.Model):
         from core.models import SystemSettings
         settings = SystemSettings.get_settings()
         
-        contact_account = self.contact.account
+        contact_account = self.contact.account if self.contact else None
         safe_account = self.safe.account if self.safe else None
+        store_account = self.store.account if self.store else None
 
         if self.invoice_type == self.SALE:
             # 1. من حساب العميل (مدين) بكامل قيمة الفاتورة
@@ -186,7 +217,7 @@ class Invoice(models.Model):
 
             if total_cost > 0:
                 cogs_acc = settings.cogs_account
-                inventory_acc = self.store.account
+                inventory_acc = store_account
                 
                 if cogs_acc and inventory_acc:
                     JournalItem.objects.create(
@@ -252,7 +283,7 @@ class Invoice(models.Model):
                 )
             
             # 4. تحديث المخزون (الجرد المستمر)
-            inventory_acc = self.store.account
+            inventory_acc = store_account
             if inventory_acc:
                 # في حالة الشراء، تزيد قيمة المخزون
                 JournalItem.objects.create(
@@ -453,6 +484,7 @@ class InvoiceItem(models.Model):
     tax_percentage = models.DecimalField(_("نسبة الضريبة"), max_digits=5, decimal_places=2, default=0)
     tax_amount = models.DecimalField(_("مبلغ الضريبة"), max_digits=15, decimal_places=2, default=0)
     net_price = models.DecimalField(_("السعر الصافي"), max_digits=15, decimal_places=2)
+    notes = models.TextField(_("ملاحظات"), blank=True, null=True)
 
     class Meta:
         verbose_name = _("بند الفاتورة")

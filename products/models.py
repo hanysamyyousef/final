@@ -44,6 +44,7 @@ class Product(models.Model):
     current_balance = models.DecimalField(_("الرصيد الحالي"), max_digits=15, decimal_places=3, default=0)
     image = models.ImageField(_("صورة المنتج"), upload_to='product_images/', blank=True, null=True)
     description = models.TextField(_("الوصف"), blank=True, null=True)
+    tax_rate = models.DecimalField(_("نسبة الضريبة"), max_digits=5, decimal_places=2, default=0)
     is_active = models.BooleanField(_("نشط"), default=True)
 
     class Meta:

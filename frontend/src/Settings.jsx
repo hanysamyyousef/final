@@ -18,8 +18,10 @@ import {
 
 const Settings = () => {
   const [settings, setSettings] = useState(null);
+  const [company, setCompany] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [backingUp, setBackingUp] = useState(false);
   
   // Data for dropdowns
   const [contacts, setContacts] = useState([]);
@@ -28,43 +30,54 @@ const Settings = () => {
   const [accounts, setAccounts] = useState([]);
 
   useEffect(() => {
-    fetchSettings();
-    fetchFormData();
+    fetchData();
   }, []);
 
-  const fetchSettings = async () => {
+  const fetchData = async () => {
+    setLoading(true);
     try {
-      const response = await api.get('/core/api/system-settings/current/');
-      setSettings(response.data);
-    } catch (err) {
-      console.error('Error fetching settings:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchFormData = async () => {
-    try {
-      const [c, s, sf, a] = await Promise.all([
+      const [settingsRes, companyRes, c, s, sf, a] = await Promise.all([
+        api.get('/core/api/system-settings/current/'),
+        api.get('/core/api/companies/'),
         api.get('/core/api/contacts/'),
         api.get('/core/api/stores/'),
         api.get('/core/api/safes/'),
         api.get('/accounting/api/accounts/')
       ]);
+      
+      setSettings(settingsRes.data);
+      if (companyRes.data && companyRes.data.length > 0) {
+        setCompany(companyRes.data[0]);
+      } else {
+        setCompany({ name: '', address: '', phone: '', email: '', tax_number: '' });
+      }
+      
       setContacts(c.data);
       setStores(s.data);
       setSafes(sf.data);
       setAccounts(a.data);
     } catch (err) {
-      console.error('Error fetching form data:', err);
+      console.error('Error fetching data:', err);
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleSave = async () => {
     setSaving(true);
     try {
-      await api.put(`/core/api/system-settings/${settings.id}/`, settings);
-      alert('تم حفظ الإعدادات بنجاح');
+      const promises = [
+        api.put(`/core/api/system-settings/${settings.id}/`, settings)
+      ];
+
+      if (company.id) {
+        promises.push(api.put(`/core/api/companies/${company.id}/`, company));
+      } else {
+        promises.push(api.post('/core/api/companies/', company));
+      }
+
+      await Promise.all(promises);
+      alert('تم حفظ الإعدادات وبيانات الشركة بنجاح');
     } catch (err) {
       console.error('Error saving settings:', err);
       alert('حدث خطأ أثناء حفظ الإعدادات');
@@ -73,8 +86,25 @@ const Settings = () => {
     }
   };
 
+  const handleBackup = async () => {
+    setBackingUp(true);
+    try {
+      const response = await api.post('/core/api/system-settings/backup/');
+      alert(`تم إنشاء النسخة الاحتياطية بنجاح: ${response.data.filename}`);
+    } catch (err) {
+      console.error('Error during backup:', err);
+      alert('فشل إنشاء النسخة الاحتياطية');
+    } finally {
+      setBackingUp(false);
+    }
+  };
+
   const handleChange = (field, value) => {
     setSettings({ ...settings, [field]: value });
+  };
+
+  const handleCompanyChange = (field, value) => {
+    setCompany({ ...company, [field]: value });
   };
 
   if (loading) return <div className="p-10 text-center">جاري تحميل الإعدادات...</div>;
@@ -97,6 +127,66 @@ const Settings = () => {
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* بيانات الشركة */}
+        <section className="space-y-4">
+          <div className="flex items-center gap-2 text-blue-600 px-2">
+            <Building size={20} />
+            <h2 className="font-bold text-sm uppercase tracking-wider">بيانات الشركة والشعار</h2>
+          </div>
+          <div className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm space-y-6">
+            <div className="space-y-2">
+              <label className="text-sm font-bold text-gray-600 px-1">اسم الشركة</label>
+              <input 
+                type="text"
+                value={company.name}
+                onChange={(e) => handleCompanyChange('name', e.target.value)}
+                className="w-full bg-gray-50 border-none rounded-2xl px-4 py-3 focus:ring-2 ring-blue-500 font-medium"
+                placeholder="أدخل اسم الشركة"
+              />
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-gray-600 px-1">رقم الهاتف</label>
+                <input 
+                  type="text"
+                  value={company.phone || ''}
+                  onChange={(e) => handleCompanyChange('phone', e.target.value)}
+                  className="w-full bg-gray-50 border-none rounded-2xl px-4 py-3 focus:ring-2 ring-blue-500 font-medium"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-gray-600 px-1">الرقم الضريبي</label>
+                <input 
+                  type="text"
+                  value={company.tax_number || ''}
+                  onChange={(e) => handleCompanyChange('tax_number', e.target.value)}
+                  className="w-full bg-gray-50 border-none rounded-2xl px-4 py-3 focus:ring-2 ring-blue-500 font-medium"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-bold text-gray-600 px-1">البريد الإلكتروني</label>
+              <input 
+                type="email"
+                value={company.email || ''}
+                onChange={(e) => handleCompanyChange('email', e.target.value)}
+                className="w-full bg-gray-50 border-none rounded-2xl px-4 py-3 focus:ring-2 ring-blue-500 font-medium"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-bold text-gray-600 px-1">العنوان</label>
+              <textarea 
+                value={company.address || ''}
+                onChange={(e) => handleCompanyChange('address', e.target.value)}
+                className="w-full bg-gray-50 border-none rounded-2xl px-4 py-3 focus:ring-2 ring-blue-500 font-medium h-20"
+              />
+            </div>
+          </div>
+        </section>
+
         {/* إعدادات الفواتير */}
         <section className="space-y-4">
           <div className="flex items-center gap-2 text-blue-600 px-2">
@@ -356,8 +446,12 @@ const Settings = () => {
                 <h3 className="font-bold text-orange-900">النسخ الاحتياطي اليدوي</h3>
                 <p className="text-xs text-orange-700">إنشاء نسخة احتياطية من قاعدة البيانات الآن</p>
               </div>
-              <button className="bg-orange-600 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-md hover:bg-orange-700 transition-colors">
-                بدء النسخ
+              <button 
+                onClick={handleBackup}
+                disabled={backingUp}
+                className="bg-orange-600 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-md hover:bg-orange-700 transition-colors disabled:opacity-50"
+              >
+                {backingUp ? 'جاري النسخ...' : 'بدء النسخ'}
               </button>
             </div>
             
@@ -367,9 +461,13 @@ const Settings = () => {
                   <Globe className="text-gray-400" size={20} />
                   <span className="text-gray-700 font-medium">لغة النظام</span>
                 </div>
-                <select className="bg-gray-100 border-none rounded-xl px-3 py-1 text-sm font-bold">
-                  <option>العربية (Arabic)</option>
-                  <option disabled>English (Soon)</option>
+                <select 
+                  value={settings.system_language || 'ar'}
+                  onChange={(e) => handleChange('system_language', e.target.value)}
+                  className="bg-gray-100 border-none rounded-xl px-3 py-1 text-sm font-bold"
+                >
+                  <option value="ar">العربية (Arabic)</option>
+                  <option value="en" disabled>English (Soon)</option>
                 </select>
               </div>
               
@@ -378,9 +476,12 @@ const Settings = () => {
                   <Bell className="text-gray-400" size={20} />
                   <span className="text-gray-700 font-medium">تنبيهات النظام</span>
                 </div>
-                <div className="w-12 h-6 bg-green-500 rounded-full relative">
-                  <div className="absolute right-1 top-1 w-4 h-4 bg-white rounded-full"></div>
-                </div>
+                <button 
+                  onClick={() => handleChange('enable_notifications', !settings.enable_notifications)}
+                  className={`w-12 h-6 rounded-full relative transition-colors ${settings.enable_notifications ? 'bg-green-500' : 'bg-gray-300'}`}
+                >
+                  <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${settings.enable_notifications ? 'right-1' : 'left-1'}`}></div>
+                </button>
               </div>
             </div>
           </div>
@@ -405,7 +506,5 @@ const Settings = () => {
     </div>
   );
 };
-
-export default Settings;
 
 export default Settings;
