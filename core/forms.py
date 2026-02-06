@@ -29,23 +29,25 @@ class BranchForm(forms.ModelForm):
 class StoreForm(forms.ModelForm):
     class Meta:
         model = Store
-        fields = ['branch', 'name', 'address', 'keeper', 'notes']
+        fields = ['branch', 'name', 'address', 'keeper', 'account', 'notes']
         widgets = {
             'branch': forms.Select(attrs={'class': 'form-select'}),
             'name': forms.TextInput(attrs={'class': 'form-control'}),
             'address': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
             'keeper': forms.TextInput(attrs={'class': 'form-control'}),
+            'account': forms.Select(attrs={'class': 'form-select'}),
             'notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
         }
 
 class SafeForm(forms.ModelForm):
     class Meta:
         model = Safe
-        fields = ['branch', 'name', 'initial_balance']
+        fields = ['branch', 'name', 'initial_balance', 'account']
         widgets = {
             'branch': forms.Select(attrs={'class': 'form-select'}),
             'name': forms.TextInput(attrs={'class': 'form-control'}),
             'initial_balance': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
+            'account': forms.Select(attrs={'class': 'form-select'}),
         }
 
 class RepresentativeForm(forms.ModelForm):
@@ -103,6 +105,10 @@ class SystemSettingsForm(forms.ModelForm):
             'alert_below_sale_price', 'alert_below_purchase_price',
             'duplicate_item_handling',
             'default_customer', 'default_supplier', 'default_safe', 'default_store',
+            # إعدادات المحاسبة
+            'sales_account', 'purchases_account', 'vat_output_account', 'vat_input_account',
+            'cogs_account', 'default_expense_account', 'default_income_account',
+            'default_salaries_account', 'default_loans_account', 'vat_percentage',
             # إعدادات طباعة الفاتورة
             'hide_company_info', 'show_previous_balance',
             'invoice_header_text', 'invoice_footer_text',
@@ -121,6 +127,17 @@ class SystemSettingsForm(forms.ModelForm):
             'default_supplier': forms.Select(attrs={'class': 'form-select'}),
             'default_safe': forms.Select(attrs={'class': 'form-select'}),
             'default_store': forms.Select(attrs={'class': 'form-select'}),
+            # إعدادات المحاسبة
+            'sales_account': forms.Select(attrs={'class': 'form-select'}),
+            'purchases_account': forms.Select(attrs={'class': 'form-select'}),
+            'vat_output_account': forms.Select(attrs={'class': 'form-select'}),
+            'vat_input_account': forms.Select(attrs={'class': 'form-select'}),
+            'cogs_account': forms.Select(attrs={'class': 'form-select'}),
+            'default_expense_account': forms.Select(attrs={'class': 'form-select'}),
+            'default_income_account': forms.Select(attrs={'class': 'form-select'}),
+            'default_salaries_account': forms.Select(attrs={'class': 'form-select'}),
+            'default_loans_account': forms.Select(attrs={'class': 'form-select'}),
+            'vat_percentage': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
             # إعدادات طباعة الفاتورة
             'hide_company_info': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'show_previous_balance': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
