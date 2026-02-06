@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { 
   LayoutDashboard, 
@@ -40,15 +40,20 @@ const NavDropdown = ({ icon, label, items, active, location }) => {
   const [isOpen, setIsOpen] = useState(false);
   const hasActiveChild = items.some(item => location.pathname === item.to);
 
+  // Close dropdown when location changes
+  useEffect(() => {
+    setIsOpen(false);
+  }, [location.pathname]);
+
   return (
     <div 
       className="relative group" 
       onMouseEnter={() => setIsOpen(true)} 
       onMouseLeave={() => setIsOpen(false)}
-      onClick={() => setIsOpen(!isOpen)}
     >
       <button
         type="button"
+        onClick={() => setIsOpen(!isOpen)}
         className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all duration-200 whitespace-nowrap ${
           hasActiveChild || active
             ? 'bg-blue-600 text-white shadow-lg shadow-blue-200' 
@@ -67,10 +72,6 @@ const NavDropdown = ({ icon, label, items, active, location }) => {
           <Link
             key={item.id}
             to={item.to}
-            onClick={(e) => {
-              e.stopPropagation();
-              setIsOpen(false);
-            }}
             className={`flex items-center gap-3 px-4 py-2.5 text-sm font-bold transition-colors ${
               location.pathname === item.to
                 ? 'text-blue-600 bg-blue-50'
@@ -110,6 +111,7 @@ const Layout = ({ children, onLogout }) => {
       label: 'الفواتير', 
       icon: <FileText size={18} />,
       children: [
+        { id: 'invoice-archive', label: 'أرشيف الفواتير', to: '/invoices', icon: <FileText size={16} /> },
         { id: 'sales-invoice', label: 'فاتورة بيع', to: '/invoices/sales', icon: <FileText size={16} /> },
         { id: 'sales-return', label: 'مرتجع بيع', to: '/invoices/sales-return', icon: <FileText size={16} /> },
         { id: 'purchase-invoice', label: 'شراء', to: '/invoices/purchase', icon: <FileText size={16} /> },
@@ -186,7 +188,7 @@ const Layout = ({ children, onLogout }) => {
           </div>
 
           {/* Lower Header: Navigation Items (Desktop) */}
-          <nav className="hidden xl:flex items-center gap-1 p-2 overflow-x-auto no-scrollbar">
+          <nav className="hidden xl:flex items-center gap-1 p-2">
             {menuItems.map((item) => (
               item.children ? (
                 <NavDropdown

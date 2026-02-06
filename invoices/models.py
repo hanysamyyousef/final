@@ -537,6 +537,10 @@ class Payment(models.Model):
     reference_number = models.CharField(_("الرقم المرجعي"), max_length=50, blank=True, null=True)
     invoice = models.ForeignKey(Invoice, on_delete=models.SET_NULL, null=True, blank=True,
                               related_name="payments", verbose_name=_("الفاتورة المرتبطة"))
+    expense_category = models.ForeignKey('finances.ExpenseCategory', on_delete=models.SET_NULL, null=True, blank=True,
+                                       related_name="payments", verbose_name=_("قسم المصروفات"))
+    income_category = models.ForeignKey('finances.IncomeCategory', on_delete=models.SET_NULL, null=True, blank=True,
+                                      related_name="payments", verbose_name=_("قسم الإيرادات"))
     is_posted = models.BooleanField(_("مرحل"), default=True)
 
     # العلاقة مع معاملة الخزنة - تم إنشاؤها بواسطة التحصيل/الدفع
@@ -580,12 +584,18 @@ class Payment(models.Model):
         if self.payment_type == self.RECEIPT:
             transaction_type = SafeTransaction.COLLECTION
             description = f"تحصيل من العميل: {self.contact.name}"
+            if self.income_category:
+                description += f" - قسم: {self.income_category.name}"
             contact_amount = -self.amount  # تخفيض رصيد العميل
             transaction_effect = ContactTransaction.COLLECTION
         else:  # PAYMENT
             transaction_type = SafeTransaction.PAYMENT
             description = f"دفع للمورد: {self.contact.name}"
-            contact_amount = -self.amount  # تخفيض رصيد المورد (تصحيح: يجب أن يكون سالب)
+            if self.expense_category:
+                description += f" - قسم: {self.expense_category.name}"
+            # في حالة الدفع للمورد، يتم إنقاص رصيد المورد (دائن ينقص)
+            # رصيد المورد في النظام يكون موجباً (التزام)، والدفع ينقصه
+            contact_amount = -self.amount
             transaction_effect = ContactTransaction.PAYMENT
 
         # إضافة معلومات الفاتورة إلى الوصف إذا كانت مرتبطة بفاتورة
@@ -612,19 +622,28 @@ class Payment(models.Model):
                     debit=self.amount,
                     memo=description
                 )
-            if contact_account:
+            
+            # إذا كان هناك قسم إيراد مربوط بحساب، نستخدم حسابه بدلاً من حساب العميل (أو بالإضافة له حسب السياسة)
+            # هنا سنتبع سياسة: إذا وجد قسم إيراد، يكون هو الطرف الدائن
+            credit_account = self.income_category.account if (self.income_category and self.income_category.account) else contact_account
+            
+            if credit_account:
                 JournalItem.objects.create(
                     journal_entry=journal_entry,
-                    account=contact_account,
+                    account=credit_account,
                     credit=self.amount,
                     memo=description
                 )
         else:  # PAYMENT
             # من حساب المورد (مدين) إلى حساب الخزنة (دائن)
-            if contact_account:
+            
+            # إذا كان هناك قسم مصروف مربوط بحساب، نستخدم حسابه بدلاً من حساب المورد
+            debit_account = self.expense_category.account if (self.expense_category and self.expense_category.account) else contact_account
+            
+            if debit_account:
                 JournalItem.objects.create(
                     journal_entry=journal_entry,
-                    account=contact_account,
+                    account=debit_account,
                     debit=self.amount,
                     memo=description
                 )

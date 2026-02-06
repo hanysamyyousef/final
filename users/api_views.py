@@ -11,7 +11,6 @@ class CustomRoleViewSet(viewsets.ModelViewSet):
     serializer_class = CustomRoleSerializer
     permission_classes = [permissions.IsAuthenticated]
 
-class UserViewSet(viewsets.ModelViewSet):
 from rolepermissions.permissions import grant_permission, revoke_permission, available_perm_status
 
 class UserViewSet(viewsets.ModelViewSet):

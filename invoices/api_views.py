@@ -4,8 +4,27 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.db.models import Sum, Count, Q
 from django.utils import timezone
-from .models import Invoice, InvoiceItem
-from .serializers import InvoiceSerializer, InvoiceItemSerializer
+from .models import Invoice, InvoiceItem, Payment
+from .serializers import InvoiceSerializer, InvoiceItemSerializer, PaymentSerializer
+
+class PaymentViewSet(viewsets.ModelViewSet):
+    queryset = Payment.objects.all().order_by('-date')
+    serializer_class = PaymentSerializer
+    permission_classes = [IsAuthenticated]
+
+    @action(detail=True, methods=['post'])
+    def post_payment(self, request, pk=None):
+        payment = self.get_object()
+        if payment.post_payment():
+            return Response({'status': 'payment posted'})
+        return Response({'error': 'could not post payment'}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['post'])
+    def unpost_payment(self, request, pk=None):
+        payment = self.get_object()
+        if payment.unpost_payment():
+            return Response({'status': 'payment unposted'})
+        return Response({'error': 'could not unpost payment'}, status=status.HTTP_400_BAD_REQUEST)
 
 class InvoiceReportViewSet(viewsets.ViewSet):
     permission_classes = [IsAuthenticated]

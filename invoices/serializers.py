@@ -1,5 +1,44 @@
 from rest_framework import serializers
-from .models import Invoice, InvoiceItem
+from .models import Invoice, InvoiceItem, Payment
+
+class PaymentSerializer(serializers.ModelSerializer):
+    contact_name = serializers.CharField(source='contact.name', read_only=True)
+    safe_name = serializers.CharField(source='safe.name', read_only=True)
+    payment_type_display = serializers.CharField(source='get_payment_type_display', read_only=True)
+    invoice_number = serializers.CharField(source='invoice.number', read_only=True)
+    expense_category_name = serializers.CharField(source='expense_category.name', read_only=True)
+    income_category_name = serializers.CharField(source='income_category.name', read_only=True)
+
+    class Meta:
+        model = Payment
+        fields = '__all__'
+        read_only_fields = ['number', 'is_posted', 'created_transaction', 'contact_transaction']
+
+    def create(self, validated_data):
+        # Generate number if not provided
+        if not validated_data.get('number'):
+            import re
+            from django.utils import timezone
+            
+            payment_type = validated_data.get('payment_type')
+            prefix = 'PAY-' if payment_type == 'payment' else 'REC-'
+            
+            all_payments = Payment.objects.filter(payment_type=payment_type)
+            max_num = 0
+            for p in all_payments:
+                nums = re.findall(r'\d+', p.number)
+                if nums:
+                    try:
+                        current_num = int(nums[-1])
+                        if current_num < 1000000000:
+                            if current_num > max_num:
+                                max_num = current_num
+                    except ValueError:
+                        continue
+            
+            validated_data['number'] = f"{prefix}{max_num + 1}"
+            
+        return super().create(validated_data)
 
 class InvoiceItemSerializer(serializers.ModelSerializer):
     product_name = serializers.CharField(source='product.name', read_only=True)

@@ -18,6 +18,49 @@ class AttendanceViewSet(viewsets.ModelViewSet):
     serializer_class = AttendanceSerializer
     permission_classes = [IsAuthenticated]
 
+    @action(detail=False, methods=['post'])
+    def bulk_add(self, request):
+        date = request.data.get('date')
+        records = request.data.get('records', [])
+        
+        if not date:
+            return Response({'error': 'Date is required'}, status=status.HTTP_400_BAD_REQUEST)
+            
+        created_count = 0
+        updated_count = 0
+        
+        for record in records:
+            employee_id = record.get('employee')
+            status_val = record.get('status', 'present')
+            check_in = record.get('check_in', '09:00')
+            check_out = record.get('check_out', '17:00')
+            notes = record.get('notes', '')
+            
+            if not employee_id:
+                continue
+                
+            attendance, created = Attendance.objects.update_or_create(
+                employee_id=employee_id,
+                date=date,
+                defaults={
+                    'status': status_val,
+                    'check_in': check_in,
+                    'check_out': check_out,
+                    'notes': notes
+                }
+            )
+            
+            if created:
+                created_count += 1
+            else:
+                updated_count += 1
+                
+        return Response({
+            'message': f'Successfully processed attendance for {len(records)} employees.',
+            'created': created_count,
+            'updated': updated_count
+        })
+
 class EmployeeLoanViewSet(viewsets.ModelViewSet):
     queryset = EmployeeLoan.objects.all()
     serializer_class = EmployeeLoanSerializer

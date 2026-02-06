@@ -32,7 +32,7 @@ class Profile(models.Model):
         return dict(self.ROLE_CHOICES).get(self.role, self.role)
 
 class CustomRole(models.Model):
-    name = models.CharField(_("اسم الدور"), max_length=100)
+    name = models.CharField(_("اسم الدور"), max_length=100, unique=True)
     description = models.TextField(_("الوصف"), blank=True, null=True)
     permissions = models.JSONField(_("الصلاحيات"), default=dict) # {perm_key: boolean}
     created_at = models.DateTimeField(auto_now_add=True)

@@ -32,15 +32,48 @@ import {
 const Invoices = () => {
   const { type } = useParams();
   
+  // Mapping URL type to internal type
+  const typeMap = {
+    'sales': 'sale',
+    'sales-return': 'sale_return',
+    'purchase': 'purchase',
+    'purchase-return': 'purchase_return',
+    'damaged': 'damaged'
+  };
+
   const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [activeTab, setActiveTab] = useState(type || 'all');
+  const [activeTab, setActiveTab] = useState(typeMap[type] || 'all');
 
   useEffect(() => {
-    if (type) {
-      setActiveTab(type === 'sales' ? 'sale' : type === 'sales-return' ? 'sale_return' : type === 'purchase' ? 'purchase' : type === 'purchase-return' ? 'purchase_return' : type === 'damaged' ? 'damaged' : 'all');
-    }
+    fetchFormData();
+  }, []);
+
+  useEffect(() => {
+    const mappedType = type ? (typeMap[type] || 'all') : 'all';
+    setActiveTab(mappedType);
+    setView('list');
+    setEditingInvoice(null);
+    setSearchTerm('');
+    
+    // Explicitly fetch data when type changes to ensure UI updates
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        let url = '/invoices/api/invoices/';
+        if (mappedType !== 'all') {
+          url += `?type=${mappedType}`;
+        }
+        const response = await api.get(url);
+        setInvoices(response.data);
+      } catch (err) {
+        console.error('Error fetching invoices:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
   }, [type]);
   const [view, setView] = useState('list'); // 'list' or 'form'
   const [editingInvoice, setEditingInvoice] = useState(null);
@@ -172,11 +205,6 @@ const Invoices = () => {
     }
   };
 
-  useEffect(() => {
-    fetchInvoices();
-    fetchFormData();
-  }, [activeTab]);
-
   const handleOpenForm = async (invoice = null) => {
     if (invoice) {
       setEditingInvoice(invoice);
@@ -208,10 +236,14 @@ const Invoices = () => {
     } else {
       setEditingInvoice(null);
       
-      // جلب الرقم التالي من الخادم
+      // Determine the default type from activeTab, ensuring it's a valid type for new invoices
+      const validTypes = ['sale', 'purchase', 'sale_return', 'purchase_return', 'damaged'];
+      const defaultType = validTypes.includes(activeTab) ? activeTab : 'sale';
+      
+      // Fetch next number from server for the determined type
       let nextNumber = `INV-${Date.now()}`;
       try {
-        const response = await api.get('/invoices/api/invoices/next_number/', { params: { type: 'sale' } });
+        const response = await api.get('/invoices/api/invoices/next_number/', { params: { type: defaultType } });
         nextNumber = response.data.next_number;
       } catch (err) {
         console.error('Error fetching next number:', err);
@@ -220,7 +252,7 @@ const Invoices = () => {
       setFormData({
         number: nextNumber,
         date: new Date().toISOString().slice(0, 16),
-        invoice_type: 'sale',
+        invoice_type: defaultType,
         payment_type: 'cash',
         contact: '',
         store: stores[0]?.id || '',
@@ -525,6 +557,7 @@ const Invoices = () => {
       'purchase': { label: 'شراء', color: 'text-rose-600 bg-rose-50' },
       'sale_return': { label: 'مرتجع بيع', color: 'text-amber-600 bg-amber-50' },
       'purchase_return': { label: 'مرتجع شراء', color: 'text-purple-600 bg-purple-50' },
+      'damaged': { label: 'هالك منتجات', color: 'text-gray-600 bg-gray-100' },
     };
     const t = types[type] || { label: type, color: 'text-gray-600 bg-gray-50' };
     return <span className={`${t.color} px-2 py-1 rounded-md text-[10px] font-bold`}>{t.label}</span>;
@@ -617,7 +650,8 @@ const Invoices = () => {
                 <div className="space-y-1.5">
                   <label className="text-sm font-bold text-gray-700 mr-1">نوع الفاتورة</label>
                   <select
-                    className="w-full px-4 py-2.5 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition"
+                    disabled
+                    className="w-full px-4 py-2.5 bg-gray-100 border-none rounded-xl outline-none transition cursor-not-allowed opacity-70"
                     value={formData.invoice_type}
                     onChange={async (e) => {
                       const newType = e.target.value;
@@ -635,6 +669,7 @@ const Invoices = () => {
                     <option value="purchase">شراء</option>
                     <option value="sale_return">مرتجع بيع</option>
                     <option value="purchase_return">مرتجع شراء</option>
+                    <option value="damaged">هالك منتجات</option>
                   </select>
                 </div>
                 <div className="space-y-1.5">
@@ -1038,11 +1073,12 @@ const Invoices = () => {
 
       <div className="flex gap-4 border-b border-gray-100 overflow-x-auto pb-px">
         {[
-          { id: 'all', label: 'الكل' },
+          { id: 'all', label: 'أرشيف الفواتير' },
           { id: 'sale', label: 'المبيعات' },
           { id: 'purchase', label: 'المشتريات' },
           { id: 'sale_return', label: 'مرتجع مبيعات' },
           { id: 'purchase_return', label: 'مرتجع مشتريات' },
+          { id: 'damaged', label: 'هالك منتجات' },
         ].map(tab => (
           <button
             key={tab.id}

@@ -46,6 +46,20 @@ const Employees = () => {
   useEffect(() => {
     if (sub) {
       setActiveTab(sub === 'attendance' ? 'attendance' : sub === 'salaries' ? 'salaries' : 'employees');
+      setIsModalOpen(false);
+      setIsAttendanceModalOpen(false);
+      setIsLoanModalOpen(false);
+      setIsSalaryModalOpen(false);
+      setEditingEmployee(null);
+      setEditingAttendance(null);
+      setEditingLoan(null);
+      setEditingSalary(null);
+    } else {
+      setActiveTab('employees');
+      setIsModalOpen(false);
+      setIsAttendanceModalOpen(false);
+      setIsLoanModalOpen(false);
+      setIsSalaryModalOpen(false);
     }
   }, [sub]);
   
@@ -54,6 +68,11 @@ const Employees = () => {
   const [isAttendanceModalOpen, setIsAttendanceModalOpen] = useState(false);
   const [isLoanModalOpen, setIsLoanModalOpen] = useState(false);
   const [isSalaryModalOpen, setIsSalaryModalOpen] = useState(false);
+  const [isBulkAttendanceModalOpen, setIsBulkAttendanceModalOpen] = useState(false);
+  const [bulkAttendanceData, setBulkAttendanceData] = useState({
+    date: new Date().toISOString().split('T')[0],
+    records: []
+  });
   
   const [editingEmployee, setEditingEmployee] = useState(null);
   const [editingAttendance, setEditingAttendance] = useState(null);
@@ -183,6 +202,34 @@ const Employees = () => {
       });
     }
     setIsAttendanceModalOpen(true);
+  };
+
+  const handleOpenBulkAttendanceModal = () => {
+    const activeEmployees = employees.filter(emp => emp.status === 'active');
+    setBulkAttendanceData({
+      date: new Date().toISOString().split('T')[0],
+      records: activeEmployees.map(emp => ({
+        employee: emp.id,
+        name: emp.name,
+        status: 'present',
+        check_in: '09:00',
+        check_out: '17:00',
+        notes: ''
+      }))
+    });
+    setIsBulkAttendanceModalOpen(true);
+  };
+
+  const handleSaveBulkAttendance = async (e) => {
+    e.preventDefault();
+    try {
+      await api.post('/employees/api/attendance/bulk_add/', bulkAttendanceData);
+      setIsBulkAttendanceModalOpen(false);
+      fetchData();
+    } catch (err) {
+      console.error('Error saving bulk attendance:', err);
+      alert('خطأ في حفظ سجلات الحضور الجماعي');
+    }
   };
 
   const handleOpenLoanModal = (loan = null) => {
@@ -447,13 +494,22 @@ const Employees = () => {
             </button>
           )}
           {activeTab === 'attendance' && (
-            <button 
-              onClick={() => handleOpenAttendanceModal()}
-              className="flex items-center justify-center gap-2 bg-green-600 text-white px-4 py-2.5 rounded-xl font-bold hover:bg-green-700 transition-all shadow-lg shadow-green-200"
-            >
-              <Calendar size={20} />
-              <span>تسجيل حضور/غياب</span>
-            </button>
+            <div className="flex gap-2">
+              <button 
+                onClick={() => handleOpenBulkAttendanceModal()}
+                className="flex items-center justify-center gap-2 bg-indigo-600 text-white px-4 py-2.5 rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200"
+              >
+                <Users size={20} />
+                <span>حضور جماعي</span>
+              </button>
+              <button 
+                onClick={() => handleOpenAttendanceModal()}
+                className="flex items-center justify-center gap-2 bg-green-600 text-white px-4 py-2.5 rounded-xl font-bold hover:bg-green-700 transition-all shadow-lg shadow-green-200"
+              >
+                <Calendar size={20} />
+                <span>تسجيل حضور/غياب</span>
+              </button>
+            </div>
           )}
           {activeTab === 'loans' && (
             <button 
@@ -1032,6 +1088,145 @@ const Employees = () => {
                 >
                   <Save size={20} />
                   حفظ السجل
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Attendance Modal */}
+      {isBulkAttendanceModalOpen && (
+        <div className="fixed inset-0 bg-gray-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl w-full max-w-4xl shadow-2xl animate-in zoom-in duration-200 max-h-[90vh] flex flex-col">
+            <div className="p-6 border-b border-gray-100 flex justify-between items-center">
+              <h2 className="text-xl font-black text-gray-900">تسجيل حضور جماعي</h2>
+              <button onClick={() => setIsBulkAttendanceModalOpen(false)} className="p-2 hover:bg-gray-100 rounded-xl transition-colors">
+                <X size={20} />
+              </button>
+            </div>
+            
+            <form onSubmit={handleSaveBulkAttendance} className="flex flex-col flex-1 overflow-hidden">
+              <div className="p-6 border-b border-gray-50 bg-gray-50/50">
+                <div className="flex items-center gap-4">
+                  <div className="space-y-1.5 flex-1 max-w-xs">
+                    <label className="text-sm font-bold text-gray-700">تاريخ الحضور</label>
+                    <input 
+                      type="date"
+                      required
+                      className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                      value={bulkAttendanceData.date}
+                      onChange={(e) => setBulkAttendanceData({...bulkAttendanceData, date: e.target.value})}
+                    />
+                  </div>
+                  <div className="flex-1"></div>
+                  <div className="flex gap-2">
+                    <button 
+                      type="button"
+                      onClick={() => {
+                        const updatedRecords = bulkAttendanceData.records.map(r => ({...r, status: 'present'}));
+                        setBulkAttendanceData({...bulkAttendanceData, records: updatedRecords});
+                      }}
+                      className="px-4 py-2 bg-green-50 text-green-600 rounded-lg text-sm font-bold hover:bg-green-100 transition-colors"
+                    >
+                      تعيين الكل حضور
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={() => {
+                        const updatedRecords = bulkAttendanceData.records.map(r => ({...r, status: 'absent'}));
+                        setBulkAttendanceData({...bulkAttendanceData, records: updatedRecords});
+                      }}
+                      className="px-4 py-2 bg-red-50 text-red-600 rounded-lg text-sm font-bold hover:bg-red-100 transition-colors"
+                    >
+                      تعيين الكل غياب
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-6">
+                <table className="w-full text-right border-collapse">
+                  <thead>
+                    <tr className="text-gray-400 text-sm border-b border-gray-100">
+                      <th className="pb-4 font-bold text-right">الموظف</th>
+                      <th className="pb-4 font-bold text-center">الحالة</th>
+                      <th className="pb-4 font-bold text-center">الحضور</th>
+                      <th className="pb-4 font-bold text-center">الانصراف</th>
+                      <th className="pb-4 font-bold text-right">ملاحظات</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {bulkAttendanceData.records.map((record, index) => (
+                      <tr key={record.employee} className="hover:bg-gray-50/50 transition-colors">
+                        <td className="py-4 font-bold text-gray-900">{record.name}</td>
+                        <td className="py-2 text-center">
+                          <select 
+                            className="px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                            value={record.status}
+                            onChange={(e) => {
+                              const newRecords = [...bulkAttendanceData.records];
+                              newRecords[index].status = e.target.value;
+                              setBulkAttendanceData({...bulkAttendanceData, records: newRecords});
+                            }}
+                          >
+                            <option value="present">حاضر</option>
+                            <option value="absent">غائب</option>
+                            <option value="excused">بعذر</option>
+                          </select>
+                        </td>
+                        <td className="py-2 text-center">
+                          <input 
+                            type="time"
+                            disabled={record.status !== 'present'}
+                            className="px-2 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
+                            value={record.check_in}
+                            onChange={(e) => {
+                              const newRecords = [...bulkAttendanceData.records];
+                              newRecords[index].check_in = e.target.value;
+                              setBulkAttendanceData({...bulkAttendanceData, records: newRecords});
+                            }}
+                          />
+                        </td>
+                        <td className="py-2 text-center">
+                          <input 
+                            type="time"
+                            disabled={record.status !== 'present'}
+                            className="px-2 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
+                            value={record.check_out}
+                            onChange={(e) => {
+                              const newRecords = [...bulkAttendanceData.records];
+                              newRecords[index].check_out = e.target.value;
+                              setBulkAttendanceData({...bulkAttendanceData, records: newRecords});
+                            }}
+                          />
+                        </td>
+                        <td className="py-2">
+                          <input 
+                            type="text"
+                            placeholder="ملاحظات..."
+                            className="w-full px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                            value={record.notes}
+                            onChange={(e) => {
+                              const newRecords = [...bulkAttendanceData.records];
+                              newRecords[index].notes = e.target.value;
+                              setBulkAttendanceData({...bulkAttendanceData, records: newRecords});
+                            }}
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              
+              <div className="p-6 border-t border-gray-100 flex gap-3 bg-gray-50/30">
+                <button 
+                  type="submit"
+                  className="flex-1 bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 transition-all flex items-center justify-center gap-2"
+                >
+                  <Save size={20} />
+                  حفظ سجلات الحضور الجماعي
                 </button>
               </div>
             </form>

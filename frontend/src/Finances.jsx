@@ -25,16 +25,41 @@ const Finances = () => {
   const [activeTab, setActiveTab] = useState('transactions');
   const [transactions, setTransactions] = useState([]);
   const [moneyTransfers, setMoneyTransfers] = useState([]);
+  const [payments, setPayments] = useState([]);
   const [banks, setBanks] = useState([]);
   const [safes, setSafes] = useState([]);
   const [expenseCategories, setExpenseCategories] = useState([]);
   const [incomeCategories, setIncomeCategories] = useState([]);
   const [accounts, setAccounts] = useState([]);
   const [branches, setBranches] = useState([]);
+  const [contacts, setContacts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+  const [categoryType, setCategoryType] = useState('expense'); // 'expense' or 'income'
   const [editingItem, setEditingItem] = useState(null);
+
+  const [categoryFormData, setCategoryFormData] = useState({
+    name: '',
+    description: '',
+    parent: '',
+    account: ''
+  });
+
+  const [paymentFormData, setPaymentFormData] = useState({
+    date: new Date().toISOString().split('T')[0],
+    amount: 0,
+    payment_type: 'receipt', // 'receipt' (تحصيل) or 'payment' (صرف)
+    contact: '',
+    safe: '',
+    bank: '',
+    expense_category: '',
+    income_category: '',
+    reference_number: '',
+    notes: '',
+    invoice: ''
+  });
 
   const [bankFormData, setBankFormData] = useState({
     name: '',
@@ -102,6 +127,29 @@ const Finances = () => {
   const [transferDestType, setTransferDestType] = useState('safe'); // 'safe' or 'bank'
 
   const handleOpenModal = (item = null) => {
+    if (activeTab === 'expense_categories' || activeTab === 'income_categories') {
+      setCategoryType(activeTab === 'expense_categories' ? 'expense' : 'income');
+      if (item) {
+        setEditingItem(item);
+        setCategoryFormData({
+          name: item.name,
+          description: item.description || '',
+          parent: item.parent || '',
+          account: item.account || ''
+        });
+      } else {
+        setEditingItem(null);
+        setCategoryFormData({
+          name: '',
+          description: '',
+          parent: '',
+          account: ''
+        });
+      }
+      setIsCategoryModalOpen(true);
+      return;
+    }
+
     if (activeTab === 'banks') {
       if (item) {
         setEditingItem(item);
@@ -258,10 +306,64 @@ const Finances = () => {
         setTransferSourceType('safe');
         setTransferDestType('safe');
       }
+    } else if (activeTab === 'payments' || activeTab === 'receipts') {
+      if (item) {
+        setEditingItem(item);
+        setPaymentFormData({
+          date: item.date.split('T')[0],
+          amount: item.amount,
+          payment_type: item.payment_type,
+          contact: item.contact,
+          safe: item.safe || '',
+          bank: item.bank || '',
+          expense_category: item.expense_category || '',
+          income_category: item.income_category || '',
+          reference_number: item.reference_number || '',
+          notes: item.notes || '',
+          invoice: item.invoice || ''
+        });
+        setPaymentSource(item.bank ? 'bank' : 'safe');
+      } else {
+        setEditingItem(null);
+        setPaymentFormData({
+          date: new Date().toISOString().split('T')[0],
+          amount: 0,
+          payment_type: activeTab === 'payments' ? 'payment' : 'receipt',
+          contact: '',
+          safe: safes[0]?.id || '',
+          bank: '',
+          expense_category: '',
+          income_category: '',
+          reference_number: '',
+          notes: '',
+          invoice: ''
+        });
+        setPaymentSource('safe');
+      }
     } else {
       setEditingItem(item);
     }
     setIsModalOpen(true);
+  };
+
+  const handlePaymentSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const data = { ...paymentFormData };
+      if (paymentSource === 'safe') data.bank = null;
+      else data.safe = null;
+
+      if (editingItem) {
+        await api.put(`/invoices/api/payments/${editingItem.id}/`, data);
+      } else {
+        await api.post('/invoices/api/payments/', data);
+      }
+      setIsModalOpen(false);
+      fetchData();
+    } catch (err) {
+      console.error('Error saving payment:', err);
+      alert('حدث خطأ أثناء حفظ السند');
+    }
   };
 
   const handleBankSubmit = async (e) => {
@@ -419,18 +521,36 @@ const Finances = () => {
     }
   };
 
+  const handleCategorySubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const endpoint = categoryType === 'expense' ? '/finances/api/expense-categories/' : '/finances/api/income-categories/';
+      if (editingItem) {
+        await api.put(`${endpoint}${editingItem.id}/`, categoryFormData);
+      } else {
+        await api.post(endpoint, categoryFormData);
+      }
+      setIsCategoryModalOpen(false);
+      fetchData();
+    } catch (err) {
+      console.error('Error saving category:', err);
+      alert('حدث خطأ أثناء حفظ القسم');
+    }
+  };
+
   const fetchData = async () => {
     try {
       setLoading(true);
       
       // Fetch common data
-      const [banksRes, safesRes, accountsRes, branchesRes, expCatRes, incCatRes] = await Promise.all([
+      const [banksRes, safesRes, accountsRes, branchesRes, expCatRes, incCatRes, contactsRes] = await Promise.all([
         api.get('/api/banks/'),
         api.get('/api/safes/'),
         api.get('/accounting/api/accounts/'),
         api.get('/api/branches/'),
         api.get('/finances/api/expense-categories/'),
-        api.get('/finances/api/income-categories/')
+        api.get('/finances/api/income-categories/'),
+        api.get('/core/api/contacts/')
       ]);
 
       setBanks(banksRes.data);
@@ -439,12 +559,16 @@ const Finances = () => {
       setBranches(branchesRes.data);
       setExpenseCategories(expCatRes.data);
       setIncomeCategories(incCatRes.data);
+      setContacts(contactsRes.data);
 
       let endpoint = '';
       if (activeTab === 'transactions') endpoint = '/finances/api/safe-transactions/';
       else if (activeTab === 'expenses') endpoint = '/finances/api/expenses/';
       else if (activeTab === 'income') endpoint = '/finances/api/incomes/';
       else if (activeTab === 'money_transfers') endpoint = '/finances/api/money-transfers/';
+      else if (activeTab === 'expense_categories') endpoint = '/finances/api/expense-categories/';
+      else if (activeTab === 'income_categories') endpoint = '/finances/api/income-categories/';
+      else if (activeTab === 'payments' || activeTab === 'receipts') endpoint = '/invoices/api/payments/';
       else if (activeTab === 'banks' || activeTab === 'safes') {
         setTransactions([]);
         setLoading(false);
@@ -453,6 +577,12 @@ const Finances = () => {
       
       const response = await api.get(endpoint);
       if (activeTab === 'money_transfers') setMoneyTransfers(response.data);
+      else if (activeTab === 'payments' || activeTab === 'receipts') {
+        const filteredPayments = activeTab === 'payments' 
+          ? response.data.filter(p => p.payment_type === 'payment')
+          : response.data.filter(p => p.payment_type === 'receipt');
+        setPayments(filteredPayments);
+      }
       else setTransactions(response.data);
 
     } catch (err) {
@@ -474,6 +604,9 @@ const Finances = () => {
         else if (activeTab === 'expenses') endpoint = `/finances/api/expenses/${id}/`;
         else if (activeTab === 'income') endpoint = `/finances/api/incomes/${id}/`;
         else if (activeTab === 'money_transfers') endpoint = `/finances/api/money-transfers/${id}/`;
+        else if (activeTab === 'expense_categories') endpoint = `/finances/api/expense-categories/${id}/`;
+        else if (activeTab === 'income_categories') endpoint = `/finances/api/income-categories/${id}/`;
+        else if (activeTab === 'payments' || activeTab === 'receipts') endpoint = `/invoices/api/payments/${id}/`;
         else if (activeTab === 'banks') endpoint = `/core/api/banks/${id}/`;
         else if (activeTab === 'safes') endpoint = `/core/api/safes/${id}/`;
         
@@ -488,9 +621,22 @@ const Finances = () => {
   const filteredItems = (
     activeTab === 'banks' ? banks : 
     (activeTab === 'safes' ? safes : 
-    (activeTab === 'money_transfers' ? moneyTransfers : transactions))
+    (activeTab === 'expense_categories' ? expenseCategories :
+    (activeTab === 'income_categories' ? incomeCategories :
+    (activeTab === 'money_transfers' ? moneyTransfers : 
+    (activeTab === 'payments' || activeTab === 'receipts' ? payments : transactions)))))
   ).filter(item => {
     const searchString = searchTerm.toLowerCase();
+    if (activeTab === 'expense_categories' || activeTab === 'income_categories') {
+      return (item.name?.toLowerCase().includes(searchString) || 
+              item.description?.toLowerCase().includes(searchString));
+    }
+    if (activeTab === 'payments' || activeTab === 'receipts') {
+      return (item.number?.toLowerCase().includes(searchString) || 
+              item.contact_name?.toLowerCase().includes(searchString) ||
+              item.notes?.toLowerCase().includes(searchString) ||
+              item.reference_number?.toLowerCase().includes(searchString));
+    }
     if (activeTab === 'transactions') {
       return (item.description?.toLowerCase().includes(searchString) || 
               item.transaction_type_display?.toLowerCase().includes(searchString));
@@ -534,7 +680,11 @@ const Finances = () => {
              activeTab === 'expenses' ? 'تسجيل مصروف' : 
              activeTab === 'banks' ? 'إضافة بنك جديد' : 
              activeTab === 'safes' ? 'إضافة خزنة جديدة' : 
-             activeTab === 'money_transfers' ? 'تحويل أموال جديد' : 'تسجيل إيراد'}
+             activeTab === 'money_transfers' ? 'تحويل أموال جديد' : 
+             activeTab === 'payments' ? 'سند صرف مورد' :
+             activeTab === 'receipts' ? 'سند تحصيل عميل' : 
+             activeTab === 'expense_categories' ? 'إضافة قسم مصروفات' :
+             activeTab === 'income_categories' ? 'إضافة قسم إيرادات' : 'تسجيل إيراد'}
           </span>
         </button>
       </div>
@@ -576,6 +726,30 @@ const Finances = () => {
           className={`px-6 py-2 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${activeTab === 'income' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-500 hover:bg-gray-50'}`}
         >
           الإيرادات
+        </button>
+        <button 
+          onClick={() => setActiveTab('expense_categories')}
+          className={`px-6 py-2 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${activeTab === 'expense_categories' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-500 hover:bg-gray-50'}`}
+        >
+          أقسام المصروفات
+        </button>
+        <button 
+          onClick={() => setActiveTab('income_categories')}
+          className={`px-6 py-2 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${activeTab === 'income_categories' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-500 hover:bg-gray-50'}`}
+        >
+          أقسام الإيرادات
+        </button>
+        <button 
+          onClick={() => setActiveTab('receipts')}
+          className={`px-6 py-2 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${activeTab === 'receipts' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-500 hover:bg-gray-50'}`}
+        >
+          تحصيلات العملاء
+        </button>
+        <button 
+          onClick={() => setActiveTab('payments')}
+          className={`px-6 py-2 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${activeTab === 'payments' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-500 hover:bg-gray-50'}`}
+        >
+          مدفوعات الموردين
         </button>
       </div>
 
@@ -642,6 +816,22 @@ const Finances = () => {
                   <th className="px-6 py-4 font-bold">المبلغ</th>
                   <th className="px-6 py-4 font-bold">رقم المرجع</th>
                 </>
+              ) : (activeTab === 'expense_categories' || activeTab === 'income_categories') ? (
+                <>
+                  <th className="px-6 py-4 font-bold">اسم القسم</th>
+                  <th className="px-6 py-4 font-bold">الوصف</th>
+                  <th className="px-6 py-4 font-bold">الحساب المحاسبي</th>
+                </>
+              ) : (activeTab === 'payments' || activeTab === 'receipts') ? (
+                <>
+                  <th className="px-6 py-4 font-bold">الرقم</th>
+                  <th className="px-6 py-4 font-bold">التاريخ</th>
+                  <th className="px-6 py-4 font-bold">{activeTab === 'payments' ? 'المورد' : 'العميل'}</th>
+                  <th className="px-6 py-4 font-bold">المبلغ</th>
+                  <th className="px-6 py-4 font-bold">الخزينة/البنك</th>
+                  <th className="px-6 py-4 font-bold">القسم</th>
+                  <th className="px-6 py-4 font-bold">الحالة</th>
+                </>
               ) : (
                 <>
                   <th className="px-6 py-4 font-bold">التاريخ</th>
@@ -692,6 +882,33 @@ const Finances = () => {
                       <div className="text-[10px] text-gray-400">افتتاحي: {parseFloat(item.initial_balance).toLocaleString()}</div>
                     </td>
                   </>
+                ) : (activeTab === 'payments' || activeTab === 'receipts') ? (
+                  <>
+                    <td className="px-6 py-4">
+                      <div className="text-sm font-bold text-gray-900">{item.number}</div>
+                      {item.reference_number && <div className="text-[10px] text-gray-400">مرجع: {item.reference_number}</div>}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-600">
+                      {new Date(item.date).toLocaleDateString('ar-EG')}
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="text-sm font-bold text-gray-900">{item.contact_name}</div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="text-sm font-black text-gray-900">{parseFloat(item.amount).toLocaleString()} ج.م</div>
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-600">
+                      {item.safe_name || item.bank_name || '---'}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-600">
+                      {activeTab === 'payments' ? item.expense_category_name : item.income_category_name || '---'}
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className={`px-2 py-1 rounded-full text-[10px] font-bold ${item.is_posted ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                        {item.is_posted ? 'مرحل' : 'مسودة'}
+                      </span>
+                    </td>
+                  </>
                 ) : activeTab === 'money_transfers' ? (
                   <>
                     <td className="px-6 py-4 text-sm text-gray-600">
@@ -722,6 +939,20 @@ const Finances = () => {
                       </div>
                     </td>
                     <td className="px-6 py-4 text-xs text-gray-400 font-mono">{item.reference_number || '---'}</td>
+                  </>
+                ) : (activeTab === 'expense_categories' || activeTab === 'income_categories') ? (
+                  <>
+                    <td className="px-6 py-4">
+                      <div className="text-sm font-bold text-gray-900">{item.name}</div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="text-sm text-gray-600 line-clamp-1">{item.description || '---'}</div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="text-sm text-gray-600">
+                        {accounts.find(a => a.id === item.account)?.name || 'غير مربوط'}
+                      </div>
+                    </td>
                   </>
                 ) : (
                   <>
@@ -1625,6 +1856,246 @@ const Finances = () => {
                 >
                   <Save size={20} />
                   <span>تأكيد التحويل</span>
+                </button>
+                <button 
+                  type="button"
+                  onClick={() => setIsModalOpen(false)}
+                  className="flex-1 bg-gray-100 text-gray-600 py-3 rounded-xl font-bold hover:bg-gray-200 transition-all"
+                >
+                  إلغاء
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      {/* Category Modal (Expense/Income Categories) */}
+      {isCategoryModalOpen && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div className={`p-6 text-white flex justify-between items-center ${categoryType === 'expense' ? 'bg-red-600' : 'bg-green-600'}`}>
+              <h2 className="text-xl font-bold flex items-center gap-2">
+                <Plus size={24} />
+                {editingItem ? (categoryType === 'expense' ? 'تعديل قسم مصروفات' : 'تعديل قسم إيرادات') : (categoryType === 'expense' ? 'إضافة قسم مصروفات جديد' : 'إضافة قسم إيرادات جديد')}
+              </h2>
+              <button onClick={() => setIsCategoryModalOpen(false)} className="hover:bg-white/20 p-2 rounded-xl transition-colors">
+                <X size={20} />
+              </button>
+            </div>
+            
+            <form onSubmit={handleCategorySubmit} className="p-6 space-y-4">
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-gray-400 mr-2">اسم القسم</label>
+                <input 
+                  type="text"
+                  required
+                  className={`w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl outline-none transition-all focus:ring-2 ${categoryType === 'expense' ? 'focus:ring-red-500' : 'focus:ring-green-500'}`}
+                  value={categoryFormData.name}
+                  onChange={(e) => setCategoryFormData({...categoryFormData, name: e.target.value})}
+                />
+              </div>
+              
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-gray-400 mr-2">الوصف</label>
+                <textarea 
+                  className={`w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl outline-none transition-all focus:ring-2 ${categoryType === 'expense' ? 'focus:ring-red-500' : 'focus:ring-green-500'}`}
+                  rows="3"
+                  value={categoryFormData.description}
+                  onChange={(e) => setCategoryFormData({...categoryFormData, description: e.target.value})}
+                ></textarea>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-gray-400 mr-2">الحساب المحاسبي المرتبط</label>
+                <select 
+                  className={`w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl outline-none transition-all focus:ring-2 ${categoryType === 'expense' ? 'focus:ring-red-500' : 'focus:ring-green-500'}`}
+                  value={categoryFormData.account}
+                  onChange={(e) => setCategoryFormData({...categoryFormData, account: e.target.value})}
+                >
+                  <option value="">اختر الحساب</option>
+                  {accounts.map(acc => (
+                    <option key={acc.id} value={acc.id}>{acc.code} - {acc.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <button 
+                  type="submit"
+                  className={`flex-1 text-white py-3 rounded-xl font-bold transition-all shadow-lg flex items-center justify-center gap-2 ${categoryType === 'expense' ? 'bg-red-600 hover:bg-red-700 shadow-red-100' : 'bg-green-600 hover:bg-green-700 shadow-green-100'}`}
+                >
+                  <Save size={20} />
+                  <span>حفظ القسم</span>
+                </button>
+                <button 
+                  type="button"
+                  onClick={() => setIsCategoryModalOpen(false)}
+                  className="flex-1 bg-gray-100 text-gray-600 py-3 rounded-xl font-bold hover:bg-gray-200 transition-all"
+                >
+                  إلغاء
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Payment Modal (Supplier Payments / Customer Receipts) */}
+      {isModalOpen && (activeTab === 'payments' || activeTab === 'receipts') && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div className={`${activeTab === 'payments' ? 'bg-red-600' : 'bg-green-600'} p-6 text-white flex justify-between items-center`}>
+              <h2 className="text-xl font-bold flex items-center gap-2">
+                <ArrowLeftRight size={24} />
+                {editingItem ? 'تعديل سند' : (activeTab === 'payments' ? 'سند صرف مورد جديد' : 'سند تحصيل عميل جديد')}
+              </h2>
+              <button onClick={() => setIsModalOpen(false)} className="hover:bg-white/20 p-2 rounded-xl transition-colors">
+                <X size={20} />
+              </button>
+            </div>
+            
+            <form onSubmit={handlePaymentSubmit} className="p-6 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-gray-400 mr-2">التاريخ</label>
+                  <input 
+                    type="date"
+                    required
+                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl outline-none transition-all focus:ring-2 focus:ring-blue-500"
+                    value={paymentFormData.date}
+                    onChange={(e) => setPaymentFormData({...paymentFormData, date: e.target.value})}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-gray-400 mr-2">المبلغ</label>
+                  <input 
+                    type="number"
+                    step="0.01"
+                    required
+                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl outline-none transition-all focus:ring-2 focus:ring-blue-500"
+                    value={paymentFormData.amount}
+                    onChange={(e) => setPaymentFormData({...paymentFormData, amount: e.target.value})}
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-gray-400 mr-2">{activeTab === 'payments' ? 'المورد' : 'العميل'}</label>
+                  <select 
+                    required
+                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl outline-none transition-all focus:ring-2 focus:ring-blue-500"
+                    value={paymentFormData.contact}
+                    onChange={(e) => setPaymentFormData({...paymentFormData, contact: e.target.value})}
+                  >
+                    <option value="">اختر {activeTab === 'payments' ? 'المورد' : 'العميل'}</option>
+                    {contacts
+                      .filter(c => activeTab === 'payments' ? c.contact_type === 'supplier' : c.contact_type === 'customer')
+                      .map(c => (
+                        <option key={c.id} value={c.id}>{c.name} (رصيد: {parseFloat(c.current_balance).toLocaleString()})</option>
+                      ))
+                    }
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-gray-400 mr-2">القسم المالي</label>
+                  <select 
+                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl outline-none transition-all focus:ring-2 focus:ring-blue-500"
+                    value={activeTab === 'payments' ? paymentFormData.expense_category : paymentFormData.income_category}
+                    onChange={(e) => activeTab === 'payments' 
+                      ? setPaymentFormData({...paymentFormData, expense_category: e.target.value})
+                      : setPaymentFormData({...paymentFormData, income_category: e.target.value})
+                    }
+                  >
+                    <option value="">بدون قسم</option>
+                    {(activeTab === 'payments' ? expenseCategories : incomeCategories).map(cat => (
+                      <option key={cat.id} value={cat.id}>{cat.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="md:col-span-2 p-4 bg-gray-50 rounded-2xl border border-gray-100 space-y-4">
+                  <div className="flex items-center gap-4">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input 
+                        type="radio" 
+                        checked={paymentSource === 'safe'} 
+                        onChange={() => setPaymentSource('safe')}
+                        className="w-4 h-4 text-blue-600"
+                      />
+                      <span className="text-sm font-bold text-gray-700">الخزينة</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input 
+                        type="radio" 
+                        checked={paymentSource === 'bank'} 
+                        onChange={() => setPaymentSource('bank')}
+                        className="w-4 h-4 text-blue-600"
+                      />
+                      <span className="text-sm font-bold text-gray-700">البنك</span>
+                    </label>
+                  </div>
+
+                  {paymentSource === 'safe' ? (
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-gray-400 mr-2">اختر الخزينة</label>
+                      <select 
+                        required
+                        className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                        value={paymentFormData.safe}
+                        onChange={(e) => setPaymentFormData({...paymentFormData, safe: e.target.value})}
+                      >
+                        <option value="">اختر الخزينة</option>
+                        {safes.map(s => (
+                          <option key={s.id} value={s.id}>{s.name} (رصيد: {parseFloat(s.current_balance).toLocaleString()})</option>
+                        ))}
+                      </select>
+                    </div>
+                  ) : (
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-gray-400 mr-2">اختر البنك</label>
+                      <select 
+                        required
+                        className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                        value={paymentFormData.bank}
+                        onChange={(e) => setPaymentFormData({...paymentFormData, bank: e.target.value})}
+                      >
+                        <option value="">اختر البنك</option>
+                        {banks.map(b => (
+                          <option key={b.id} value={b.id}>{b.name} (رصيد: {parseFloat(b.current_balance).toLocaleString()})</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-gray-400 mr-2">رقم المرجع</label>
+                  <input 
+                    type="text"
+                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl outline-none transition-all focus:ring-2 focus:ring-blue-500"
+                    value={paymentFormData.reference_number}
+                    onChange={(e) => setPaymentFormData({...paymentFormData, reference_number: e.target.value})}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-gray-400 mr-2">ملاحظات</label>
+                <textarea 
+                  className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl outline-none transition-all focus:ring-2 focus:ring-blue-500"
+                  rows="2"
+                  value={paymentFormData.notes}
+                  onChange={(e) => setPaymentFormData({...paymentFormData, notes: e.target.value})}
+                ></textarea>
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <button 
+                  type="submit"
+                  className={`flex-1 text-white py-3 rounded-xl font-bold transition-all shadow-lg flex items-center justify-center gap-2 ${activeTab === 'payments' ? 'bg-red-600 hover:bg-red-700 shadow-red-100' : 'bg-green-600 hover:bg-green-700 shadow-green-100'}`}
+                >
+                  <Save size={20} />
+                  <span>حفظ السند</span>
                 </button>
                 <button 
                   type="button"

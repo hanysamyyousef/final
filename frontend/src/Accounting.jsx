@@ -24,6 +24,16 @@ import {
 } from 'lucide-react';
 
 const Accounting = () => {
+  const { sub } = useParams();
+
+  useEffect(() => {
+    if (sub) {
+      setIsModalOpen(false);
+      setEditingAccount(null);
+      // Logic for accounting sub-routes if needed
+    }
+  }, [sub]);
+
   const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');

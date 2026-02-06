@@ -36,6 +36,12 @@ const Contacts = () => {
   useEffect(() => {
     if (typeParam) {
       setActiveTab(typeParam);
+      setIsModalOpen(false);
+      setEditingContact(null);
+    } else {
+      setActiveTab('all');
+      setIsModalOpen(false);
+      setEditingContact(null);
     }
   }, [typeParam]);
   const [isModalOpen, setIsModalOpen] = useState(false);
