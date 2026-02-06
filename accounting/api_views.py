@@ -10,6 +10,88 @@ from .serializers import (
     CostCenterSerializer, 
     FinancialPeriodSerializer
 )
+from .reports import AccountingReports
+
+class AccountingReportViewSet(viewsets.ViewSet):
+    permission_classes = [IsAuthenticated]
+
+    @action(detail=False, methods=['get'])
+    def trial_balance(self, request):
+        start_date = request.query_params.get('start_date')
+        end_date = request.query_params.get('end_date')
+        cost_center_id = request.query_params.get('cost_center')
+        
+        report = AccountingReports.get_trial_balance(start_date, end_date, cost_center_id)
+        
+        # Serialize account objects in the report data
+        serialized_data = []
+        for item in report['data']:
+            serialized_item = item.copy()
+            serialized_item['account'] = AccountSerializer(item['account']).data
+            serialized_data.append(serialized_item)
+        
+        report['data'] = serialized_data
+        return Response(report)
+
+    @action(detail=False, methods=['get'])
+    def profit_loss(self, request):
+        start_date = request.query_params.get('start_date')
+        end_date = request.query_params.get('end_date')
+        
+        report = AccountingReports.get_profit_loss(start_date, end_date)
+        
+        # Serialize account objects
+        report['income'] = [
+            {'account': AccountSerializer(item['account']).data, 'balance': item['balance']}
+            for item in report['income']
+        ]
+        report['expense'] = [
+            {'account': AccountSerializer(item['account']).data, 'balance': item['balance']}
+            for item in report['expense']
+        ]
+        
+        return Response(report)
+
+    @action(detail=False, methods=['get'])
+    def balance_sheet(self, request):
+        date = request.query_params.get('date')
+        
+        report = AccountingReports.get_balance_sheet(date)
+        
+        # Serialize account objects
+        report['assets'] = [
+            {'account': AccountSerializer(item['account']).data, 'balance': item['balance']}
+            for item in report['assets']
+        ]
+        report['liabilities'] = [
+            {'account': AccountSerializer(item['account']).data, 'balance': item['balance']}
+            for item in report['liabilities']
+        ]
+        report['equity'] = [
+            {'account': AccountSerializer(item['account']).data, 'balance': item['balance']}
+            for item in report['equity']
+        ]
+        
+        return Response(report)
+
+    @action(detail=False, methods=['get'])
+    def vat_report(self, request):
+        start_date = request.query_params.get('start_date')
+        end_date = request.query_params.get('end_date')
+        
+        report = AccountingReports.get_vat_report(start_date, end_date)
+        
+        # Serialize account objects if they exist in the report (check AccountingReports.get_vat_report implementation)
+        if 'input_vat_details' in report:
+            for item in report['input_vat_details']:
+                if 'account' in item:
+                    item['account'] = AccountSerializer(item['account']).data
+        if 'output_vat_details' in report:
+            for item in report['output_vat_details']:
+                if 'account' in item:
+                    item['account'] = AccountSerializer(item['account']).data
+                    
+        return Response(report)
 
 class AccountViewSet(viewsets.ModelViewSet):
     queryset = Account.objects.all()

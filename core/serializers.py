@@ -1,5 +1,10 @@
 from rest_framework import serializers
-from .models import Company, Branch, Store, Safe, Representative, Driver, Contact
+from .models import Company, Branch, Store, Safe, Representative, Driver, Contact, SystemSettings
+
+class SystemSettingsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SystemSettings
+        fields = '__all__'
 
 class CompanySerializer(serializers.ModelSerializer):
     class Meta:

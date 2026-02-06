@@ -22,10 +22,21 @@ import {
 
 const JournalEntries = () => {
   const [entries, setEntries] = useState([]);
+  const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState(null);
+  const [formData, setFormData] = useState({
+    entry_number: '',
+    date: new Date().toISOString().split('T')[0],
+    description: '',
+    reference: '',
+    items: [
+      { account: '', debit: 0, credit: 0, memo: '' },
+      { account: '', debit: 0, credit: 0, memo: '' }
+    ]
+  });
   
   const fetchEntries = async () => {
     try {
@@ -39,9 +50,107 @@ const JournalEntries = () => {
     }
   };
 
+  const fetchAccounts = async () => {
+    try {
+      const response = await api.get('/accounting/api/accounts/');
+      setAccounts(response.data.filter(a => a.is_selectable));
+    } catch (err) {
+      console.error('Error fetching accounts:', err);
+    }
+  };
+
   useEffect(() => {
     fetchEntries();
+    fetchAccounts();
   }, []);
+
+  const handleOpenModal = (entry = null) => {
+    if (entry) {
+      setEditingEntry(entry);
+      setFormData({
+        entry_number: entry.entry_number,
+        date: entry.date.split('T')[0],
+        description: entry.description,
+        reference: entry.reference || '',
+        items: entry.items.map(item => ({
+          account: item.account,
+          debit: parseFloat(item.debit),
+          credit: parseFloat(item.credit),
+          memo: item.memo || ''
+        }))
+      });
+    } else {
+      setEditingEntry(null);
+      setFormData({
+        entry_number: `JE-${Date.now()}`,
+        date: new Date().toISOString().split('T')[0],
+        description: '',
+        reference: '',
+        items: [
+          { account: '', debit: 0, credit: 0, memo: '' },
+          { account: '', debit: 0, credit: 0, memo: '' }
+        ]
+      });
+    }
+    setIsModalOpen(true);
+  };
+
+  const handleAddItem = () => {
+    setFormData({
+      ...formData,
+      items: [...formData.items, { account: '', debit: 0, credit: 0, memo: '' }]
+    });
+  };
+
+  const handleRemoveItem = (index) => {
+    const newItems = formData.items.filter((_, i) => i !== index);
+    setFormData({ ...formData, items: newItems });
+  };
+
+  const handleItemChange = (index, field, value) => {
+    const newItems = [...formData.items];
+    newItems[index][field] = value;
+    
+    // Ensure if debit is set, credit is 0 and vice-versa (optional but common)
+    if (field === 'debit' && value > 0) newItems[index].credit = 0;
+    if (field === 'credit' && value > 0) newItems[index].debit = 0;
+    
+    setFormData({ ...formData, items: newItems });
+  };
+
+  const calculateTotals = () => {
+    const totalDebit = formData.items.reduce((sum, item) => sum + (parseFloat(item.debit) || 0), 0);
+    const totalCredit = formData.items.reduce((sum, item) => sum + (parseFloat(item.credit) || 0), 0);
+    return { totalDebit, totalCredit };
+  };
+
+  const handleSave = async (e) => {
+    e.preventDefault();
+    const { totalDebit, totalCredit } = calculateTotals();
+    
+    if (totalDebit !== totalCredit) {
+      alert('يجب أن يكون إجمالي المدين مساوياً لإجمالي الدائن');
+      return;
+    }
+
+    if (totalDebit === 0) {
+      alert('يجب إدخال مبالغ في القيد');
+      return;
+    }
+
+    try {
+      if (editingEntry) {
+        await api.put(`/accounting/api/journal-entries/${editingEntry.id}/`, formData);
+      } else {
+        await api.post('/accounting/api/journal-entries/', formData);
+      }
+      setIsModalOpen(false);
+      fetchEntries();
+    } catch (err) {
+      console.error('Error saving entry:', err);
+      alert(err.response?.data?.error || 'حدث خطأ أثناء حفظ البيانات');
+    }
+  };
 
   const handlePost = async (id) => {
     try {
@@ -91,6 +200,7 @@ const JournalEntries = () => {
           <p className="text-gray-500">تسجيل ومراجعة كافة الحركات المالية</p>
         </div>
         <button 
+          onClick={() => handleOpenModal()}
           className="flex items-center justify-center gap-2 bg-blue-600 text-white px-4 py-2.5 rounded-xl font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-200"
         >
           <Plus size={20} />
@@ -177,7 +287,10 @@ const JournalEntries = () => {
                         >
                           ترحيل
                         </button>
-                        <button className="p-2 text-gray-400 hover:bg-gray-100 rounded-lg transition-colors">
+                        <button 
+                          onClick={() => handleOpenModal(entry)}
+                          className="p-2 text-gray-400 hover:bg-gray-100 rounded-lg transition-colors"
+                        >
                           <Edit2 size={16} />
                         </button>
                         <button 
@@ -208,6 +321,176 @@ const JournalEntries = () => {
           </div>
         )}
       </div>
+
+      {/* Modal */}
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl w-full max-w-4xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 my-8">
+            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+              <h2 className="text-xl font-black text-gray-800">
+                {editingEntry ? 'تعديل قيد محاسبي' : 'إضافة قيد يدوي جديد'}
+              </h2>
+              <button 
+                onClick={() => setIsModalOpen(false)}
+                className="p-2 hover:bg-white rounded-xl transition-colors text-gray-400 hover:text-gray-600 shadow-sm"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            
+            <form onSubmit={handleSave} className="p-6 space-y-6">
+              {/* Header Info */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-sm font-bold text-gray-700 mr-1">رقم القيد</label>
+                  <input
+                    type="text"
+                    required
+                    className="w-full px-4 py-2.5 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition"
+                    value={formData.entry_number}
+                    onChange={(e) => setFormData({...formData, entry_number: e.target.value})}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-sm font-bold text-gray-700 mr-1">التاريخ</label>
+                  <input
+                    type="date"
+                    required
+                    className="w-full px-4 py-2.5 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition"
+                    value={formData.date}
+                    onChange={(e) => setFormData({...formData, date: e.target.value})}
+                  />
+                </div>
+                <div className="md:col-span-2 space-y-1.5">
+                  <label className="text-sm font-bold text-gray-700 mr-1">البيان / الوصف</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="مثال: سداد مصروفات إدارية..."
+                    className="w-full px-4 py-2.5 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition"
+                    value={formData.description}
+                    onChange={(e) => setFormData({...formData, description: e.target.value})}
+                  />
+                </div>
+              </div>
+
+              {/* Items Table */}
+              <div className="border border-gray-100 rounded-2xl overflow-hidden">
+                <table className="w-full text-right">
+                  <thead>
+                    <tr className="bg-gray-50 text-gray-500 text-xs">
+                      <th className="px-4 py-3 font-bold">الحساب</th>
+                      <th className="px-4 py-3 font-bold w-32">مدين</th>
+                      <th className="px-4 py-3 font-bold w-32">دائن</th>
+                      <th className="px-4 py-3 font-bold">البيان (اختياري)</th>
+                      <th className="px-4 py-3 w-12"></th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {formData.items.map((item, index) => (
+                      <tr key={index} className="group">
+                        <td className="p-2">
+                          <select
+                            required
+                            className="w-full px-3 py-2 bg-gray-50 border-none rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none transition"
+                            value={item.account}
+                            onChange={(e) => handleItemChange(index, 'account', e.target.value)}
+                          >
+                            <option value="">اختر الحساب...</option>
+                            {accounts.map(a => (
+                              <option key={a.id} value={a.id}>{a.code} - {a.name}</option>
+                            ))}
+                          </select>
+                        </td>
+                        <td className="p-2">
+                          <input
+                            type="number"
+                            step="0.01"
+                            className="w-full px-3 py-2 bg-gray-50 border-none rounded-lg text-sm text-left font-mono focus:ring-2 focus:ring-blue-500 outline-none transition"
+                            value={item.debit}
+                            onChange={(e) => handleItemChange(index, 'debit', parseFloat(e.target.value) || 0)}
+                          />
+                        </td>
+                        <td className="p-2">
+                          <input
+                            type="number"
+                            step="0.01"
+                            className="w-full px-3 py-2 bg-gray-50 border-none rounded-lg text-sm text-left font-mono focus:ring-2 focus:ring-blue-500 outline-none transition"
+                            value={item.credit}
+                            onChange={(e) => handleItemChange(index, 'credit', parseFloat(e.target.value) || 0)}
+                          />
+                        </td>
+                        <td className="p-2">
+                          <input
+                            type="text"
+                            className="w-full px-3 py-2 bg-gray-50 border-none rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none transition"
+                            value={item.memo}
+                            onChange={(e) => handleItemChange(index, 'memo', e.target.value)}
+                          />
+                        </td>
+                        <td className="p-2">
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveItem(index)}
+                            disabled={formData.items.length <= 2}
+                            className="p-2 text-gray-300 hover:text-red-500 disabled:opacity-0 transition-colors"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr className="bg-gray-50/50 font-black text-sm">
+                      <td className="px-4 py-3">الإجمالي</td>
+                      <td className={`px-4 py-3 text-left font-mono ${calculateTotals().totalDebit !== calculateTotals().totalCredit ? 'text-red-600' : 'text-blue-600'}`}>
+                        {calculateTotals().totalDebit.toLocaleString()}
+                      </td>
+                      <td className={`px-4 py-3 text-left font-mono ${calculateTotals().totalDebit !== calculateTotals().totalCredit ? 'text-red-600' : 'text-blue-600'}`}>
+                        {calculateTotals().totalCredit.toLocaleString()}
+                      </td>
+                      <td colSpan="2" className="px-4 py-3">
+                        {calculateTotals().totalDebit !== calculateTotals().totalCredit && (
+                          <span className="text-xs font-bold text-red-500 flex items-center gap-1">
+                            <AlertCircle size={12} />
+                            القيد غير متوازن
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleAddItem}
+                className="flex items-center gap-2 text-blue-600 font-bold text-sm hover:text-blue-700 transition-colors mr-1"
+              >
+                <Plus size={16} />
+                إضافة سطر جديد
+              </button>
+
+              <div className="flex gap-3 pt-4 border-t border-gray-100">
+                <button
+                  type="submit"
+                  className="flex-1 bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 transition shadow-lg shadow-blue-200"
+                >
+                  {editingEntry ? 'حفظ التعديلات' : 'حفظ القيد'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsModalOpen(false)}
+                  className="flex-1 bg-gray-100 text-gray-600 py-3 rounded-xl font-bold hover:bg-gray-200 transition"
+                >
+                  إلغاء
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

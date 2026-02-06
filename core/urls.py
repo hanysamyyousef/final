@@ -10,6 +10,7 @@ router.register(r'safes', api_views.SafeViewSet)
 router.register(r'contacts', api_views.ContactViewSet)
 router.register(r'representatives', api_views.RepresentativeViewSet)
 router.register(r'drivers', api_views.DriverViewSet)
+router.register(r'system-settings', api_views.SystemSettingsViewSet)
 
 urlpatterns = [
     path('api/', include(router.urls)),

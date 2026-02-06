@@ -5,6 +5,7 @@ from . import views, api_views
 router = DefaultRouter()
 router.register(r'invoices', api_views.InvoiceViewSet)
 router.register(r'invoice-items', api_views.InvoiceItemViewSet)
+router.register(r'reports', api_views.InvoiceReportViewSet, basename='invoice-reports')
 
 urlpatterns = [
     # API URLs

@@ -19,7 +19,7 @@ class JournalItemSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 class JournalEntrySerializer(serializers.ModelSerializer):
-    items = JournalItemSerializer(many=True, read_only=True)
+    items = JournalItemSerializer(many=True)
     total_debit = serializers.SerializerMethodField()
     total_credit = serializers.SerializerMethodField()
     
@@ -32,6 +32,28 @@ class JournalEntrySerializer(serializers.ModelSerializer):
         
     def get_total_credit(self, obj):
         return sum(item.credit for item in obj.items.all())
+
+    def create(self, validated_data):
+        items_data = validated_data.pop('items')
+        journal_entry = JournalEntry.objects.create(**validated_data)
+        for item_data in items_data:
+            JournalItem.objects.create(journal_entry=journal_entry, **item_data)
+        return journal_entry
+
+    def update(self, instance, validated_data):
+        items_data = validated_data.pop('items', None)
+        instance.entry_number = validated_data.get('entry_number', instance.entry_number)
+        instance.date = validated_data.get('date', instance.date)
+        instance.description = validated_data.get('description', instance.description)
+        instance.reference = validated_data.get('reference', instance.reference)
+        instance.save()
+
+        if items_data is not None:
+            instance.items.all().delete()
+            for item_data in items_data:
+                JournalItem.objects.create(journal_entry=instance, **item_data)
+        
+        return instance
 
 class CostCenterSerializer(serializers.ModelSerializer):
     class Meta:

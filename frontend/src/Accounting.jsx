@@ -12,28 +12,95 @@ import {
   TrendingUp,
   FileSpreadsheet,
   ArrowRightLeft,
-  BookOpen
+  BookOpen,
+  Edit2,
+  Trash2,
+  X
 } from 'lucide-react';
 
 const Accounting = () => {
   const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingAccount, setEditingAccount] = useState(null);
+  const [formData, setFormData] = useState({
+    name: '',
+    code: '',
+    account_type: 'asset',
+    parent: '',
+    is_selectable: true
+  });
+
+  const fetchAccounts = async () => {
+    try {
+      setLoading(true);
+      const response = await api.get('/accounting/api/accounts/');
+      setAccounts(response.data);
+    } catch (err) {
+      console.error('Error fetching accounts:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchAccounts = async () => {
-      try {
-        setLoading(true);
-        const response = await api.get('/accounting/api/accounts/');
-        setAccounts(response.data);
-      } catch (err) {
-        console.error('Error fetching accounts:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchAccounts();
   }, []);
+
+  const handleOpenModal = (account = null) => {
+    if (account) {
+      setEditingAccount(account);
+      setFormData({
+        name: account.name,
+        code: account.code,
+        account_type: account.account_type,
+        parent: account.parent || '',
+        is_selectable: account.is_selectable
+      });
+    } else {
+      setEditingAccount(null);
+      setFormData({
+        name: '',
+        code: '',
+        account_type: 'asset',
+        parent: '',
+        is_selectable: true
+      });
+    }
+    setIsModalOpen(true);
+  };
+
+  const handleSave = async (e) => {
+    e.preventDefault();
+    try {
+      const data = { ...formData };
+      if (data.parent === '') data.parent = null;
+
+      if (editingAccount) {
+        await api.put(`/accounting/api/accounts/${editingAccount.id}/`, data);
+      } else {
+        await api.post('/accounting/api/accounts/', data);
+      }
+      setIsModalOpen(false);
+      fetchAccounts();
+    } catch (err) {
+      console.error('Error saving account:', err);
+      alert('حدث خطأ أثناء حفظ البيانات');
+    }
+  };
+
+  const handleDelete = async (id) => {
+    if (window.confirm('هل أنت متأكد من حذف هذا الحساب؟')) {
+      try {
+        await api.delete(`/accounting/api/accounts/${id}/`);
+        fetchAccounts();
+      } catch (err) {
+        console.error('Error deleting account:', err);
+        alert('لا يمكن حذف الحساب لوجود حركات مرتبطة به أو حسابات فرعية');
+      }
+    }
+  };
 
   const filteredAccounts = accounts.filter(account => 
     account.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -80,7 +147,10 @@ const Accounting = () => {
             <FileSpreadsheet size={18} />
             تصدير
           </button>
-          <button className="bg-blue-600 text-white px-4 py-2 rounded-xl flex items-center gap-2 hover:bg-blue-700 transition shadow-lg shadow-blue-200">
+          <button 
+            onClick={() => handleOpenModal()}
+            className="bg-blue-600 text-white px-4 py-2 rounded-xl flex items-center gap-2 hover:bg-blue-700 transition shadow-lg shadow-blue-200"
+          >
             <Plus size={20} />
             حساب جديد
           </button>
@@ -181,11 +251,19 @@ const Accounting = () => {
                 </td>
                 <td className="p-4 text-left">
                   <div className="flex justify-end gap-2">
-                    <button className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition" title="عرض الحركات">
-                      <ArrowRightLeft size={16} />
+                    <button 
+                      onClick={() => handleOpenModal(account)}
+                      className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition" 
+                      title="تعديل"
+                    >
+                      <Edit2 size={16} />
                     </button>
-                    <button className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition">
-                      <MoreVertical size={16} />
+                    <button 
+                      onClick={() => handleDelete(account.id)}
+                      className="p-2 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                      title="حذف"
+                    >
+                      <Trash2 size={16} />
                     </button>
                   </div>
                 </td>
@@ -194,6 +272,111 @@ const Accounting = () => {
           </tbody>
         </table>
       </div>
+
+      {/* Modal */}
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+              <h2 className="text-xl font-black text-gray-800">
+                {editingAccount ? 'تعديل حساب' : 'إضافة حساب جديد'}
+              </h2>
+              <button 
+                onClick={() => setIsModalOpen(false)}
+                className="p-2 hover:bg-white rounded-xl transition-colors text-gray-400 hover:text-gray-600 shadow-sm"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            
+            <form onSubmit={handleSave} className="p-6 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-sm font-bold text-gray-700 mr-1">كود الحساب</label>
+                  <input
+                    type="text"
+                    required
+                    className="w-full px-4 py-2.5 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition"
+                    value={formData.code}
+                    onChange={(e) => setFormData({...formData, code: e.target.value})}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-sm font-bold text-gray-700 mr-1">اسم الحساب</label>
+                  <input
+                    type="text"
+                    required
+                    className="w-full px-4 py-2.5 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition"
+                    value={formData.name}
+                    onChange={(e) => setFormData({...formData, name: e.target.value})}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-sm font-bold text-gray-700 mr-1">نوع الحساب</label>
+                <select
+                  className="w-full px-4 py-2.5 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition"
+                  value={formData.account_type}
+                  onChange={(e) => setFormData({...formData, account_type: e.target.value})}
+                >
+                  <option value="asset">أصول</option>
+                  <option value="liability">خصوم</option>
+                  <option value="equity">حقوق ملكية</option>
+                  <option value="income">إيرادات</option>
+                  <option value="expense">مصروفات</option>
+                </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-sm font-bold text-gray-700 mr-1">الحساب الأب</label>
+                <select
+                  className="w-full px-4 py-2.5 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition"
+                  value={formData.parent}
+                  onChange={(e) => setFormData({...formData, parent: e.target.value})}
+                >
+                  <option value="">-- بدون حساب أب --</option>
+                  {accounts
+                    .filter(a => !a.is_selectable && a.id !== editingAccount?.id)
+                    .map(a => (
+                      <option key={a.id} value={a.id}>{a.code} - {a.name}</option>
+                    ))
+                  }
+                </select>
+              </div>
+
+              <div className="flex items-center gap-3 p-3 bg-blue-50/50 rounded-xl border border-blue-100/50">
+                <input
+                  type="checkbox"
+                  id="is_selectable"
+                  className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                  checked={formData.is_selectable}
+                  onChange={(e) => setFormData({...formData, is_selectable: e.target.checked})}
+                />
+                <label htmlFor="is_selectable" className="text-sm font-bold text-blue-900 cursor-pointer">
+                  قابل للتحديد في القيود (حساب فرعي)
+                </label>
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="submit"
+                  className="flex-1 bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 transition shadow-lg shadow-blue-200"
+                >
+                  {editingAccount ? 'حفظ التعديلات' : 'إضافة الحساب'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsModalOpen(false)}
+                  className="flex-1 bg-gray-100 text-gray-600 py-3 rounded-xl font-bold hover:bg-gray-200 transition"
+                >
+                  إلغاء
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -1,9 +1,10 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
-from django.db.models import Count, Sum, Q
+from django.db.models import Count, Sum, Q, DecimalField
 from django.db.models.functions import Coalesce, TruncMonth
-from core.models import Company, Branch, Store, Safe, Contact, Representative, Driver
+from decimal import Decimal
+from core.models import Company, Branch, Store, Safe, Contact, Representative, Driver, SystemSettings
 from django.utils import timezone
 from datetime import timedelta
 from products.models import Product, Category
@@ -11,6 +12,7 @@ from invoices.models import Invoice
 from employees.models import Employee
 
 from rest_framework import viewsets
+from rest_framework.decorators import action
 from .serializers import (
     CompanySerializer, 
     BranchSerializer, 
@@ -18,7 +20,8 @@ from .serializers import (
     SafeSerializer, 
     ContactSerializer,
     RepresentativeSerializer,
-    DriverSerializer
+    DriverSerializer,
+    SystemSettingsSerializer
 )
 
 class DashboardStatsAPIView(APIView):
@@ -47,7 +50,11 @@ class DashboardStatsAPIView(APIView):
         top_customers = Contact.objects.filter(contact_type=Contact.CUSTOMER)\
             .annotate(
                 invoice_count=Count('invoices', filter=Q(invoices__invoice_type=Invoice.SALE)),
-                total_spent=Coalesce(Sum('invoices__net_amount', filter=Q(invoices__invoice_type=Invoice.SALE)), 0.0)
+                total_spent=Coalesce(
+                    Sum('invoices__net_amount', filter=Q(invoices__invoice_type=Invoice.SALE)),
+                    Decimal('0'),
+                    output_field=DecimalField()
+                )
             ).order_by('-total_spent')[:5]
             
         stats['top_customers'] = [
@@ -101,6 +108,20 @@ class DashboardStatsAPIView(APIView):
             stats['chart_data'] = []
         
         return Response(stats)
+
+class SystemSettingsViewSet(viewsets.ModelViewSet):
+    queryset = SystemSettings.objects.all()
+    serializer_class = SystemSettingsSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_object(self):
+        return SystemSettings.get_settings()
+
+    @action(detail=False, methods=['get'])
+    def current(self, request):
+        settings = SystemSettings.get_settings()
+        serializer = self.get_serializer(settings)
+        return Response(serializer.data)
 
 class CompanyViewSet(viewsets.ModelViewSet):
     queryset = Company.objects.all()

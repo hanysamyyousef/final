@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   BarChart3, 
   PieChart, 
@@ -9,9 +9,13 @@ import {
   Calendar,
   ChevronLeft
 } from 'lucide-react';
+import ReportViewer from './ReportViewer';
 
-const ReportCard = ({ title, description, icon, color }) => (
-  <div className="bg-white p-6 rounded-3xl border border-gray-100 hover:shadow-xl transition-all cursor-pointer group">
+const ReportCard = ({ title, description, icon, color, onClick }) => (
+  <div 
+    onClick={onClick}
+    className="bg-white p-6 rounded-3xl border border-gray-100 hover:shadow-xl transition-all cursor-pointer group"
+  >
     <div className="flex justify-between items-start mb-4">
       <div className={`p-3 rounded-2xl ${color} bg-opacity-10 text-opacity-100 group-hover:scale-110 transition-transform`}>
         {React.cloneElement(icon, { className: `w-6 h-6 ${color.replace('bg-', 'text-')}` })}
@@ -30,17 +34,19 @@ const ReportCard = ({ title, description, icon, color }) => (
 );
 
 const Reports = () => {
+  const [selectedReport, setSelectedReport] = useState(null);
+
   const financialReports = [
-    { title: 'ميزان المراجعة', description: 'ملخص أرصدة كافة الحسابات المدينة والدائنة', icon: <FileSpreadsheet />, color: 'bg-blue-600' },
-    { title: 'قائمة الدخل', description: 'تقرير الأرباح والخسائر خلال فترة زمنية محددة', icon: <TrendingUp />, color: 'bg-green-600' },
-    { title: 'الميزانية العمومية', description: 'بيان بالمركز المالي للشركة (أصول، خصوم، حقوق ملكية)', icon: <PieChart />, color: 'bg-purple-600' },
-    { title: 'كشف حساب تفصيلي', description: 'حركة حساب معين خلال فترة زمنية محددة', icon: <FileText />, color: 'bg-amber-600' },
+    { id: 'trial_balance', title: 'ميزان المراجعة', description: 'ملخص أرصدة كافة الحسابات المدينة والدائنة', icon: <FileSpreadsheet />, color: 'bg-blue-600' },
+    { id: 'profit_loss', title: 'قائمة الدخل', description: 'تقرير الأرباح والخسائر خلال فترة زمنية محددة', icon: <TrendingUp />, color: 'bg-green-600' },
+    { id: 'balance_sheet', title: 'الميزانية العمومية', description: 'بيان بالمركز المالي للشركة (أصول، خصوم، حقوق ملكية)', icon: <PieChart />, color: 'bg-purple-600' },
+    { id: 'vat_report', title: 'تقرير الضريبة', description: 'ملخص ضريبة القيمة المضافة للمبيعات والمشتريات', icon: <FileText />, color: 'bg-cyan-600' },
   ];
 
-  const salesReports = [
-    { title: 'تقرير المبيعات', description: 'تحليل المبيعات حسب العميل، المنتج أو الفترة', icon: <BarChart3 />, color: 'bg-rose-600' },
-    { title: 'تقرير المشتريات', description: 'تحليل المشتريات حسب المورد أو المنتج', icon: <BarChart3 />, color: 'bg-indigo-600' },
-    { title: 'تقرير الضريبة', description: 'ملخص ضريبة القيمة المضافة للمبيعات والمشتريات', icon: <FileText />, color: 'bg-cyan-600' },
+  const salesAndPurchasesReports = [
+    { id: 'sales_summary', title: 'ملخص المبيعات', description: 'تحليل المبيعات حسب العميل، المنتج أو الفترة', icon: <BarChart3 />, color: 'bg-rose-600' },
+    { id: 'purchases_summary', title: 'ملخص المشتريات', description: 'تحليل المشتريات حسب المورد، المنتج أو الفترة', icon: <ArrowDownToLine />, color: 'bg-orange-600' },
+    { id: 'product_sales', title: 'مبيعات المنتجات', description: 'تحليل مبيعات كل منتج على حدة', icon: <BarChart3 />, color: 'bg-indigo-600' },
   ];
 
   return (
@@ -56,8 +62,12 @@ const Reports = () => {
           <h2 className="font-bold text-sm uppercase tracking-wider">التقارير المحاسبية</h2>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {financialReports.map((report, idx) => (
-            <ReportCard key={idx} {...report} />
+          {financialReports.map((report) => (
+            <ReportCard 
+              key={report.id} 
+              {...report} 
+              onClick={() => setSelectedReport(report)}
+            />
           ))}
         </div>
       </section>
@@ -68,11 +78,23 @@ const Reports = () => {
           <h2 className="font-bold text-sm uppercase tracking-wider">تقارير المبيعات والمخازن</h2>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {salesReports.map((report, idx) => (
-            <ReportCard key={idx} {...report} />
+          {salesAndPurchasesReports.map((report) => (
+            <ReportCard 
+              key={report.id} 
+              {...report} 
+              onClick={() => setSelectedReport(report)}
+            />
           ))}
         </div>
       </section>
+
+      {selectedReport && (
+        <ReportViewer 
+          reportType={selectedReport.id}
+          title={selectedReport.title}
+          onClose={() => setSelectedReport(null)}
+        />
+      )}
 
       <div className="bg-blue-50 p-8 rounded-[2rem] border border-blue-100 flex flex-col md:flex-row items-center justify-between gap-6">
         <div className="space-y-2 text-center md:text-right">
