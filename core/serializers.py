@@ -1,5 +1,11 @@
 from rest_framework import serializers
-from .models import Company, Branch, Store, Safe, Representative, Driver, Contact, SystemSettings
+from .models import Company, Branch, Store, Safe, Bank, Representative, Driver, Contact, SystemSettings
+
+class BankSerializer(serializers.ModelSerializer):
+    branch_name = serializers.CharField(source='branch.name', read_only=True)
+    class Meta:
+        model = Bank
+        fields = '__all__'
 
 class SystemSettingsSerializer(serializers.ModelSerializer):
     class Meta:

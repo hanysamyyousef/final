@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Employee, Attendance
+from .models import Employee, Attendance, EmployeeLoan, Salary
 
 class EmployeeSerializer(serializers.ModelSerializer):
     status_display = serializers.CharField(source='get_status_display', read_only=True)
@@ -15,4 +15,20 @@ class AttendanceSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Attendance
+        fields = '__all__'
+
+class EmployeeLoanSerializer(serializers.ModelSerializer):
+    employee_name = serializers.CharField(source='employee.name', read_only=True)
+    safe_name = serializers.CharField(source='safe.name', read_only=True)
+    
+    class Meta:
+        model = EmployeeLoan
+        fields = '__all__'
+
+class SalarySerializer(serializers.ModelSerializer):
+    employee_name = serializers.CharField(source='employee.name', read_only=True)
+    safe_name = serializers.CharField(source='safe.name', read_only=True)
+    
+    class Meta:
+        model = Salary
         fields = '__all__'

@@ -8,7 +8,7 @@ from django.db.models import Count, Sum, Q, DecimalField
 from django.db.models.functions import Coalesce, TruncMonth
 from decimal import Decimal
 from django.conf import settings as django_settings
-from core.models import Company, Branch, Store, Safe, Contact, Representative, Driver, SystemSettings
+from core.models import Company, Branch, Store, Safe, Bank, Contact, Representative, Driver, SystemSettings
 from django.utils import timezone
 from datetime import timedelta
 from products.models import Product, Category
@@ -22,11 +22,17 @@ from .serializers import (
     BranchSerializer, 
     StoreSerializer, 
     SafeSerializer, 
+    BankSerializer,
     ContactSerializer,
     RepresentativeSerializer,
     DriverSerializer,
     SystemSettingsSerializer
 )
+
+class BankViewSet(viewsets.ModelViewSet):
+    queryset = Bank.objects.all()
+    serializer_class = BankSerializer
+    permission_classes = [IsAuthenticated]
 
 class DashboardStatsAPIView(APIView):
     permission_classes = [IsAuthenticated]
@@ -121,9 +127,16 @@ class SystemSettingsViewSet(viewsets.ModelViewSet):
     def get_object(self):
         return SystemSettings.get_settings()
 
-    @action(detail=False, methods=['get'])
+    @action(detail=False, methods=['get', 'put', 'patch'])
     def current(self, request):
         settings = SystemSettings.get_settings()
+        if request.method in ['PUT', 'PATCH']:
+            serializer = self.get_serializer(settings, data=request.data, partial=request.method == 'PATCH')
+            if serializer.is_valid():
+                serializer.save()
+                return Response(serializer.data)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
         serializer = self.get_serializer(settings)
         return Response(serializer.data)
 

@@ -62,6 +62,24 @@ class Safe(models.Model):
     def __str__(self):
         return f"{self.name} - {self.branch.name}"
 
+class Bank(models.Model):
+    branch = models.ForeignKey(Branch, on_delete=models.CASCADE, related_name='banks', verbose_name=_("الفرع"))
+    name = models.CharField(_("اسم البنك"), max_length=255)
+    account_number = models.CharField(_("رقم الحساب"), max_length=50, blank=True, null=True)
+    iban = models.CharField(_("IBAN"), max_length=50, blank=True, null=True)
+    address = models.TextField(_("العنوان"), blank=True, null=True)
+    initial_balance = models.DecimalField(_("الرصيد الافتتاحي"), max_digits=15, decimal_places=2, default=0)
+    current_balance = models.DecimalField(_("الرصيد الحالي"), max_digits=15, decimal_places=2, default=0)
+    # ربط البنك بحساب في شجرة الحسابات
+    account = models.OneToOneField('accounting.Account', on_delete=models.PROTECT, null=True, blank=True, related_name='bank', verbose_name=_("حساب الأستاذ"))
+
+    class Meta:
+        verbose_name = _("بنك")
+        verbose_name_plural = _("البنوك")
+
+    def __str__(self):
+        return f"{self.name} - {self.branch.name}"
+
 class Representative(models.Model):
     name = models.CharField(_("الاسم"), max_length=255)
     phone = models.CharField(_("رقم الهاتف"), max_length=20, blank=True, null=True)
@@ -210,6 +228,22 @@ class SystemSettings(models.Model):
                                             related_name='settings_loans', verbose_name=_("حساب سلف الموظفين"))
     vat_percentage = models.DecimalField(_("نسبة ضريبة القيمة المضافة (%)"), max_digits=5, decimal_places=2, default=5.0)
 
+    # إعدادات الأصول الثابتة
+    DEPRECIATION_METHOD_CHOICES = [
+        ('straight_line', _('القسط الثابت')),
+        ('reducing_balance', _('القسط المتناقص')),
+    ]
+    default_depreciation_method = models.CharField(_("طريقة الإهلاك الافتراضية"), max_length=20,
+                                                 choices=DEPRECIATION_METHOD_CHOICES, default='straight_line')
+    
+    # إعدادات الفترة المالية
+    fiscal_year_start = models.DateField(_("بداية السنة المالية"), null=True, blank=True)
+    lock_date = models.DateField(_("تاريخ إغلاق العمليات"), null=True, blank=True, 
+                               help_text=_("لا يمكن إضافة أو تعديل قيود قبل هذا التاريخ"))
+    
+    # إعدادات القيود والموافقة
+    require_journal_approval = models.BooleanField(_("طلب الموافقة على القيود اليدوية"), default=False)
+
     # إعدادات طباعة الفاتورة
     hide_company_info = models.BooleanField(_("إخفاء بيانات الشركة في الفاتورة"), default=False)
     show_previous_balance = models.BooleanField(_("إظهار الحساب السابق للعميل"), default=True)
@@ -219,6 +253,15 @@ class SystemSettings(models.Model):
     # إعدادات طباعة تقرير الأذونات المخزنية
     show_driver_in_permit_report = models.BooleanField(_("إظهار حقل السائق في تقرير الأذونات"), default=True)
     show_representative_in_permit_report = models.BooleanField(_("إظهار حقل المندوب في تقرير الأذونات"), default=True)
+
+    # إعدادات الفروع
+    main_branch = models.ForeignKey(Branch, on_delete=models.SET_NULL, null=True, blank=True,
+                                  related_name='is_main_for', verbose_name=_("الفرع الرئيسي"))
+    share_customers = models.BooleanField(_("مشاركة العملاء بين الفروع"), default=False)
+    share_products = models.BooleanField(_("مشاركة المنتجات بين الفروع"), default=False)
+    share_suppliers = models.BooleanField(_("مشاركة الموردين بين الفروع"), default=False)
+    link_cost_centers = models.BooleanField(_("ربط مراكز التكلفة بين الفروع"), default=True)
+    per_branch_accounts = models.BooleanField(_("تخصيص الحسابات على مستوى الفروع"), default=False)
 
     # إعدادات النظام الإضافية
     system_language = models.CharField(_("لغة النظام"), max_length=10, default='ar')

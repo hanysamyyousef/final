@@ -743,8 +743,13 @@ def salary_generate_monthly(request):
             # إنشاء رواتب لجميع الموظفين
             created_salaries = []
             for employee in active_employees:
-                # حساب خصم السلف
-                loans_deduction = 0  # يمكن تنفيذ حساب خصم السلف لاحقًا
+                # حساب خصم السلف - الحصول على إجمالي السلف المستحقة
+                total_unpaid_loans = employee.get_total_loans()
+                
+                # خصم السلفة بالكامل إذا كانت أقل من الراتب، أو خصم جزء منها (يمكن تطوير السياسة لاحقاً)
+                # حالياً سنخصم كامل السلفة المتاحة بما لا يتجاوز 50% من الراتب كمثال
+                max_loan_deduction = employee.salary * Decimal('0.5')
+                loans_deduction = min(total_unpaid_loans, max_loan_deduction)
 
                 # حساب صافي الراتب
                 net_salary = employee.salary - employee.deductions - loans_deduction
@@ -787,7 +792,9 @@ def salary_generate_monthly(request):
         active_employees = Employee.objects.filter(status=Employee.ACTIVE)
         for employee in active_employees:
             # حساب خصم السلف
-            loans_deduction = 0  # يمكن تنفيذ حساب خصم السلف لاحقًا
+            total_unpaid_loans = employee.get_total_loans()
+            max_loan_deduction = employee.salary * Decimal('0.5')
+            loans_deduction = min(total_unpaid_loans, max_loan_deduction)
 
             # حساب صافي الراتب
             net_salary = employee.salary - employee.deductions - loans_deduction

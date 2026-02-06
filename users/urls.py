@@ -1,8 +1,14 @@
-from django.urls import path
+from django.urls import path, include
 from django.contrib.auth import views as auth_views
-from . import views
+from rest_framework.routers import DefaultRouter
+from . import views, api_views
+
+router = DefaultRouter()
+router.register(r'api/users', api_views.UserViewSet)
+router.register(r'api/custom-roles', api_views.CustomRoleViewSet)
 
 urlpatterns = [
+    path('', include(router.urls)),
     # Authentication URLs
     path('register/', views.register_view, name='register'),
     path('login/', views.login_view, name='login'),

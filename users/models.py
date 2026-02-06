@@ -31,6 +31,20 @@ class Profile(models.Model):
         """Get the display name for the role"""
         return dict(self.ROLE_CHOICES).get(self.role, self.role)
 
+class CustomRole(models.Model):
+    name = models.CharField(_("اسم الدور"), max_length=100)
+    description = models.TextField(_("الوصف"), blank=True, null=True)
+    permissions = models.JSONField(_("الصلاحيات"), default=dict) # {perm_key: boolean}
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = _("دور مخصص")
+        verbose_name_plural = _("الأدوار المخصصة")
+
+    def __str__(self):
+        return self.name
+
 class UserNotification(models.Model):
     NOTIFICATION_TYPES = (
         ('invoice', _('فاتورة جديدة')),

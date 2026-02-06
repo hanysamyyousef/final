@@ -261,6 +261,7 @@ class Salary(models.Model):
             from core.models import SystemSettings
             settings = SystemSettings.get_settings()
             salary_expense_account = settings.default_salaries_account
+            loan_account = settings.default_loans_account
             
             if salary_expense_account and self.safe.account:
                 journal_entry = JournalEntry.objects.create(
@@ -270,20 +271,45 @@ class Salary(models.Model):
                     reference=str(self.id)
                 )
 
-                # من حساب مصروف الرواتب (الجانب المدين)
+                # 1. حساب مصروف الرواتب (الجانب المدين) - المبلغ الإجمالي قبل خصم السلف
                 JournalItem.objects.create(
                     journal_entry=journal_entry,
                     account=salary_expense_account,
-                    debit=self.net_salary,
-                    memo=f"راتب الموظف {self.employee.name} شهر {self.month}/{self.year}"
+                    debit=self.base_salary - self.deductions,
+                    memo=f"استحقاق راتب الموظف {self.employee.name} شهر {self.month}/{self.year}"
                 )
 
-                # إلى حساب الخزنة (الجانب الدائن)
+                # 2. حساب سلف الموظفين (الجانب الدائن) - إذا وجد خصم سلف
+                if self.loans_deduction > 0 and loan_account:
+                    JournalItem.objects.create(
+                        journal_entry=journal_entry,
+                        account=loan_account,
+                        credit=self.loans_deduction,
+                        memo=f"تسوية سلف الموظف {self.employee.name} من الراتب"
+                    )
+                    
+                    # تحديث السلف كمدفوعة (الأقدم فالأقدم)
+                    remaining_deduction = self.loans_deduction
+                    unpaid_loans = self.employee.loans.filter(is_paid=False).order_by('date')
+                    for loan in unpaid_loans:
+                        if remaining_deduction <= 0:
+                            break
+                        if loan.amount <= remaining_deduction:
+                            loan.is_paid = True
+                            loan.payment_date = timezone.now().date()
+                            loan.save()
+                            remaining_deduction -= loan.amount
+                        else:
+                            # إذا كانت السلفة أكبر من المتبقي، نقسمها (تحتاج لتعديل في النموذج أو نكتفي بالكامل حالياً)
+                            # للتبسيط، سنعتبر السلفة مدفوعة إذا تم خصم معظمها أو نتركها غير مدفوعة
+                            break
+
+                # 3. حساب الخزنة (الجانب الدائن) - المبلغ الصافي المنصرف
                 JournalItem.objects.create(
                     journal_entry=journal_entry,
                     account=self.safe.account,
                     credit=self.net_salary,
-                    memo=f"صرف نقدي لراتب {self.employee.name}"
+                    memo=f"صرف صافي راتب {self.employee.name}"
                 )
 
                 journal_entry.post()

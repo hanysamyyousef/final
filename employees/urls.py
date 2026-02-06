@@ -7,6 +7,8 @@ app_name = 'employees'
 router = DefaultRouter()
 router.register(r'employees', api_views.EmployeeViewSet)
 router.register(r'attendance', api_views.AttendanceViewSet)
+router.register(r'loans', api_views.EmployeeLoanViewSet)
+router.register(r'salaries', api_views.SalaryViewSet)
 
 urlpatterns = [
     # API URLs

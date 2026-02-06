@@ -10,6 +10,7 @@ router.register(r'cost-centers', api_views.CostCenterViewSet)
 router.register(r'journal-entries', api_views.JournalEntryViewSet)
 router.register(r'journal-items', api_views.JournalItemViewSet)
 router.register(r'financial-periods', api_views.FinancialPeriodViewSet)
+router.register(r'fixed-assets', api_views.FixedAssetViewSet)
 router.register(r'reports', api_views.AccountingReportViewSet, basename='accounting-reports')
 
 urlpatterns = [

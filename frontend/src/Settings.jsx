@@ -316,14 +316,61 @@ const Settings = () => {
             <h2 className="font-bold text-sm uppercase tracking-wider">إعدادات المحاسبة والضرائب</h2>
           </div>
           <div className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm space-y-6">
-            <div className="space-y-2">
-              <label className="text-sm font-bold text-gray-600 px-1">نسبة ضريبة القيمة المضافة (%)</label>
-              <input 
-                type="number"
-                value={settings.vat_percentage}
-                onChange={(e) => handleChange('vat_percentage', e.target.value)}
-                className="w-full bg-gray-50 border-none rounded-2xl px-4 py-3 focus:ring-2 ring-blue-500 font-medium"
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-gray-600 px-1">نسبة ضريبة القيمة المضافة (%)</label>
+                <input 
+                  type="number"
+                  value={settings.vat_percentage}
+                  onChange={(e) => handleChange('vat_percentage', e.target.value)}
+                  className="w-full bg-gray-50 border-none rounded-2xl px-4 py-3 focus:ring-2 ring-blue-500 font-medium"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-gray-600 px-1">طريقة الإهلاك الافتراضية</label>
+                <select 
+                  value={settings.default_depreciation_method}
+                  onChange={(e) => handleChange('default_depreciation_method', e.target.value)}
+                  className="w-full bg-gray-50 border-none rounded-2xl px-4 py-3 focus:ring-2 ring-blue-500 font-medium"
+                >
+                  <option value="straight_line">القسط الثابت</option>
+                  <option value="reducing_balance">القسط المتناقص</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-gray-600 px-1">بداية السنة المالية</label>
+                <input 
+                  type="date"
+                  value={settings.fiscal_year_start || ''}
+                  onChange={(e) => handleChange('fiscal_year_start', e.target.value)}
+                  className="w-full bg-gray-50 border-none rounded-2xl px-4 py-3 focus:ring-2 ring-blue-500 font-medium"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-gray-600 px-1">تاريخ إغلاق العمليات</label>
+                <input 
+                  type="date"
+                  value={settings.lock_date || ''}
+                  onChange={(e) => handleChange('lock_date', e.target.value)}
+                  className="w-full bg-gray-50 border-none rounded-2xl px-4 py-3 focus:ring-2 ring-blue-500 font-medium"
+                />
+                <p className="text-[10px] text-red-400 px-2">لا يمكن إضافة أو تعديل قيود قبل هذا التاريخ</p>
+              </div>
+            </div>
+
+            <div className="space-y-3 pt-2">
+              <label className="flex items-center gap-3 cursor-pointer group">
+                <input 
+                  type="checkbox" 
+                  checked={settings.require_journal_approval}
+                  onChange={(e) => handleChange('require_journal_approval', e.target.checked)}
+                  className="w-5 h-5 rounded-lg border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-gray-700 font-medium group-hover:text-blue-600 transition-colors">طلب الموافقة على القيود اليدوية</span>
+              </label>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -374,6 +421,35 @@ const Settings = () => {
                 <select 
                   value={settings.vat_input_account || ''}
                   onChange={(e) => handleChange('vat_input_account', e.target.value)}
+                  className="w-full bg-gray-50 border-none rounded-2xl px-4 py-2 text-sm focus:ring-2 ring-blue-500 font-medium"
+                >
+                  <option value="">اختر حساب...</option>
+                  {accounts.map(a => (
+                    <option key={a.id} value={a.id}>{a.code} - {a.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-gray-600 px-1">حساب الرواتب والأجور الافتراضي</label>
+                <select 
+                  value={settings.default_salaries_account || ''}
+                  onChange={(e) => handleChange('default_salaries_account', e.target.value)}
+                  className="w-full bg-gray-50 border-none rounded-2xl px-4 py-2 text-sm focus:ring-2 ring-blue-500 font-medium"
+                >
+                  <option value="">اختر حساب...</option>
+                  {accounts.map(a => (
+                    <option key={a.id} value={a.id}>{a.code} - {a.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-gray-600 px-1">حساب سلف الموظفين الافتراضي</label>
+                <select 
+                  value={settings.default_loans_account || ''}
+                  onChange={(e) => handleChange('default_loans_account', e.target.value)}
                   className="w-full bg-gray-50 border-none rounded-2xl px-4 py-2 text-sm focus:ring-2 ring-blue-500 font-medium"
                 >
                   <option value="">اختر حساب...</option>

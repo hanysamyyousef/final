@@ -5,16 +5,35 @@ import { X, Download, Printer, Filter, Calendar } from 'lucide-react';
 const ReportViewer = ({ reportType, title, onClose }) => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [accounts, setAccounts] = useState([]);
   const [filters, setFilters] = useState({
     start_date: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0],
     end_date: new Date().toISOString().split('T')[0],
+    account: '',
   });
 
+  const fetchAccounts = async () => {
+    try {
+      const response = await api.get('/accounting/api/accounts/');
+      // Filter for selectable accounts only
+      setAccounts(response.data.filter(a => a.is_selectable));
+    } catch (err) {
+      console.error('Error fetching accounts:', err);
+    }
+  };
+
   const fetchData = async () => {
+    if (reportType === 'general_ledger' && !filters.account) {
+      setData(null);
+      setLoading(false);
+      return;
+    }
+    
     setLoading(true);
     try {
       let endpoint = '';
       if (reportType === 'trial_balance') endpoint = '/accounting/api/reports/trial_balance/';
+      else if (reportType === 'general_ledger') endpoint = '/accounting/api/reports/general_ledger/';
       else if (reportType === 'profit_loss') endpoint = '/accounting/api/reports/profit_loss/';
       else if (reportType === 'balance_sheet') endpoint = '/accounting/api/reports/balance_sheet/';
       else if (reportType === 'vat_report') endpoint = '/accounting/api/reports/vat_report/';
@@ -32,8 +51,67 @@ const ReportViewer = ({ reportType, title, onClose }) => {
   };
 
   useEffect(() => {
+    if (reportType === 'general_ledger') {
+      fetchAccounts();
+    }
+  }, [reportType]);
+
+  useEffect(() => {
     fetchData();
   }, [reportType, filters]);
+
+  const renderGeneralLedger = () => (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center bg-gray-50 p-6 rounded-2xl border border-gray-100">
+        <div>
+          <p className="text-gray-500 text-sm">الحساب</p>
+          <h3 className="text-xl font-bold text-gray-900">{data.account.code} - {data.account.name}</h3>
+        </div>
+        <div className="text-left">
+          <p className="text-gray-500 text-sm">الرصيد الافتتاحي</p>
+          <h3 className={`text-xl font-bold ${parseFloat(data.opening_balance) >= 0 ? 'text-green-600' : 'text-rose-600'}`}>
+            {parseFloat(data.opening_balance).toLocaleString()}
+          </h3>
+        </div>
+      </div>
+
+      <div className="overflow-x-auto">
+        <table className="w-full text-right border-collapse">
+          <thead>
+            <tr className="bg-gray-50 text-gray-600 text-sm font-bold border-b">
+              <th className="p-4">التاريخ</th>
+              <th className="p-4">رقم القيد</th>
+              <th className="p-4">البيان</th>
+              <th className="p-4">مدين</th>
+              <th className="p-4">دائن</th>
+              <th className="p-4">الرصيد</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.data.map((item, idx) => (
+              <tr key={idx} className="border-b hover:bg-gray-50">
+                <td className="p-4">{new Date(item.date).toLocaleDateString('ar-EG')}</td>
+                <td className="p-4 text-blue-600 font-bold">{item.entry_number}</td>
+                <td className="p-4">
+                  <div className="font-bold">{item.description}</div>
+                  {item.memo && <div className="text-xs text-gray-500">{item.memo}</div>}
+                </td>
+                <td className="p-4 text-green-600">{parseFloat(item.debit) > 0 ? parseFloat(item.debit).toLocaleString() : '-'}</td>
+                <td className="p-4 text-rose-600">{parseFloat(item.credit) > 0 ? parseFloat(item.credit).toLocaleString() : '-'}</td>
+                <td className="p-4 font-black">{parseFloat(item.balance).toLocaleString()}</td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr className="bg-gray-800 text-white font-black">
+              <td className="p-4" colSpan={5}>الرصيد النهائي</td>
+              <td className="p-4">{parseFloat(data.closing_balance).toLocaleString()}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+  );
 
   const renderTrialBalance = () => (
     <div className="overflow-x-auto">
@@ -285,6 +363,21 @@ const ReportViewer = ({ reportType, title, onClose }) => {
         </header>
 
         <div className="p-6 bg-white border-b flex flex-wrap items-center gap-6">
+          {reportType === 'general_ledger' && (
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-gray-500 font-bold">الحساب:</span>
+              <select 
+                value={filters.account}
+                onChange={(e) => setFilters({...filters, account: e.target.value})}
+                className="bg-gray-100 border-none rounded-xl px-4 py-2 text-sm font-bold focus:ring-2 ring-blue-500 min-w-[250px]"
+              >
+                <option value="">اختر الحساب...</option>
+                {accounts.map(acc => (
+                  <option key={acc.id} value={acc.id}>{acc.code} - {acc.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
           <div className="flex items-center gap-3">
             <Calendar size={18} className="text-gray-400" />
             <div className="flex items-center gap-2">
@@ -321,6 +414,7 @@ const ReportViewer = ({ reportType, title, onClose }) => {
           ) : data ? (
             <>
               {reportType === 'trial_balance' && renderTrialBalance()}
+              {reportType === 'general_ledger' && renderGeneralLedger()}
               {reportType === 'profit_loss' && renderProfitLoss()}
               {reportType === 'balance_sheet' && renderBalanceSheet()}
               {reportType === 'vat_report' && renderVATReport()}

@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
+import { useParams } from 'react-router-dom';
 import api from './api';
 import { useReactToPrint } from 'react-to-print';
 import * as XLSX from 'xlsx';
@@ -29,10 +30,18 @@ import {
 } from 'lucide-react';
 
 const Invoices = () => {
+  const { type } = useParams();
+  
   const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [activeTab, setActiveTab] = useState('all');
+  const [activeTab, setActiveTab] = useState(type || 'all');
+
+  useEffect(() => {
+    if (type) {
+      setActiveTab(type === 'sales' ? 'sale' : type === 'sales-return' ? 'sale_return' : type === 'purchase' ? 'purchase' : type === 'purchase-return' ? 'purchase_return' : type === 'damaged' ? 'damaged' : 'all');
+    }
+  }, [type]);
   const [view, setView] = useState('list'); // 'list' or 'form'
   const [editingInvoice, setEditingInvoice] = useState(null);
   const [previousBalance, setPreviousBalance] = useState(0);

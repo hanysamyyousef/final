@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import api from './api';
 import { 
   Users, 
@@ -18,6 +19,9 @@ import {
 } from 'lucide-react';
 
 const Contacts = () => {
+  const [searchParams] = useSearchParams();
+  const typeParam = searchParams.get('type');
+  
   const [contacts, setContacts] = useState([]);
   const [topCustomers, setTopCustomers] = useState([]);
   const [debtSummary, setDebtSummary] = useState({
@@ -27,7 +31,13 @@ const Contacts = () => {
   });
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [activeTab, setActiveTab] = useState('all'); // 'all', 'customer', 'supplier'
+  const [activeTab, setActiveTab] = useState(typeParam || 'all');
+
+  useEffect(() => {
+    if (typeParam) {
+      setActiveTab(typeParam);
+    }
+  }, [typeParam]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingContact, setEditingContact] = useState(null);
   const [formData, setFormData] = useState({

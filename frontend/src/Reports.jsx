@@ -38,6 +38,7 @@ const Reports = () => {
 
   const financialReports = [
     { id: 'trial_balance', title: 'ميزان المراجعة', description: 'ملخص أرصدة كافة الحسابات المدينة والدائنة', icon: <FileSpreadsheet />, color: 'bg-blue-600' },
+    { id: 'general_ledger', title: 'دفتر الأستاذ', description: 'عرض حركات حساب معين بالتفصيل خلال فترة', icon: <FileText />, color: 'bg-amber-600' },
     { id: 'profit_loss', title: 'قائمة الدخل', description: 'تقرير الأرباح والخسائر خلال فترة زمنية محددة', icon: <TrendingUp />, color: 'bg-green-600' },
     { id: 'balance_sheet', title: 'الميزانية العمومية', description: 'بيان بالمركز المالي للشركة (أصول، خصوم، حقوق ملكية)', icon: <PieChart />, color: 'bg-purple-600' },
     { id: 'vat_report', title: 'تقرير الضريبة', description: 'ملخص ضريبة القيمة المضافة للمبيعات والمشتريات', icon: <FileText />, color: 'bg-cyan-600' },

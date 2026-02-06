@@ -52,6 +52,27 @@ class Account(MPTTModel):
     
     balance = models.DecimalField(_("الرصيد الحالي"), max_digits=15, decimal_places=2, default=0)
 
+    def save(self, *args, **kwargs):
+        if self.pk:
+            old_obj = Account.objects.get(pk=self.pk)
+            if old_obj.parent != self.parent:
+                # إذا تغير الأب، نحتاج لتحديث أرصدة الشجرة
+                balance_to_move = self.balance
+                
+                # طرح الرصيد من الأجداد القدامى
+                if old_obj.parent:
+                    for ancestor in old_obj.parent.get_ancestors(include_self=True):
+                        ancestor.balance -= balance_to_move
+                        ancestor.save(update_fields=['balance'])
+                
+                # إضافة الرصيد للأجداد الجدد
+                if self.parent:
+                    for ancestor in self.parent.get_ancestors(include_self=True):
+                        ancestor.balance += balance_to_move
+                        ancestor.save(update_fields=['balance'])
+        
+        super().save(*args, **kwargs)
+
     class MPTTMeta:
         order_insertion_by = ['code']
 
@@ -159,14 +180,18 @@ class JournalEntry(models.Model):
         with transaction.atomic():
             for item in items:
                 account = item.account
-                # تحديث الرصيد بناءً على نوع الحساب
+                # حساب مبلغ التغيير
                 if account.account_type in ['asset', 'expense']:
-                    account.balance += (item.debit - item.credit)
+                    amount = (item.debit - item.credit)
                 else:
-                    account.balance += (item.credit - item.debit)
-                account.save()
+                    amount = (item.credit - item.debit)
+                
+                # تحديث الرصيد للحساب وجميع آبائه (Propagate balance up the tree)
+                for acc in account.get_ancestors(include_self=True):
+                    acc.balance += amount
+                    acc.save()
 
-                # تحديث أرصدة الموديلات المرتبطة
+                # تحديث أرصدة الموديلات المرتبطة (للحساب المباشر فقط)
                 if hasattr(account, 'safe'):
                     safe = account.safe
                     safe.current_balance = account.balance
@@ -204,14 +229,18 @@ class JournalEntry(models.Model):
             items = self.items.all()
             for item in items:
                 account = item.account
-                # عكس التحديث بناءً على نوع الحساب
+                # حساب مبلغ التغيير للعكس
                 if account.account_type in ['asset', 'expense']:
-                    account.balance -= (item.debit - item.credit)
+                    amount = (item.debit - item.credit)
                 else:
-                    account.balance -= (item.credit - item.debit)
-                account.save()
+                    amount = (item.credit - item.debit)
+                
+                # عكس التحديث للحساب وجميع آبائه
+                for acc in account.get_ancestors(include_self=True):
+                    acc.balance -= amount
+                    acc.save()
 
-                # تحديث أرصدة الموديلات المرتبطة
+                # تحديث أرصدة الموديلات المرتبطة (للحساب المباشر فقط)
                 if hasattr(account, 'safe'):
                     safe = account.safe
                     safe.current_balance = account.balance
@@ -258,6 +287,10 @@ class JournalItem(models.Model):
 
     def clean(self):
         from django.core.exceptions import ValidationError
+        if self.account and not self.account.is_selectable:
+            raise ValidationError(_("الحساب (%(account)s) هو حساب أب ولا يمكن استخدامه في القيود مباشرة.") % {
+                'account': self.account.name
+            })
         if self.journal_entry.is_posted:
             raise ValidationError(_("لا يمكن تعديل بنود قيد مرحل. قم بإلغاء الترحيل أولاً."))
         if FinancialPeriod.is_date_locked(self.journal_entry.date):

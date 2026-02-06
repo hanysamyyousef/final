@@ -1,7 +1,7 @@
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 from django.utils import timezone
-from core.models import Safe, Contact, Store, Representative, Driver
+from core.models import Safe, Bank, Contact, Store, Representative, Driver
 from products.models import Product, ProductUnit
 
 class ExpenseCategory(models.Model):
@@ -62,7 +62,8 @@ class SafeTransaction(models.Model):
         (INCOME, _("إيراد")),
     ]
 
-    safe = models.ForeignKey(Safe, on_delete=models.CASCADE, related_name='transactions', verbose_name=_("الخزنة"))
+    safe = models.ForeignKey(Safe, on_delete=models.CASCADE, related_name='transactions', verbose_name=_("الخزنة"), null=True, blank=True)
+    bank = models.ForeignKey(Bank, on_delete=models.CASCADE, related_name='transactions', verbose_name=_("البنك"), null=True, blank=True)
     date = models.DateTimeField(_("تاريخ العملية"), default=timezone.now)
     amount = models.DecimalField(_("المبلغ"), max_digits=15, decimal_places=2)
     transaction_type = models.CharField(_("نوع العملية"), max_length=25, choices=TRANSACTION_TYPE_CHOICES)
@@ -76,12 +77,13 @@ class SafeTransaction(models.Model):
     balance_after = models.DecimalField(_("الرصيد بعد العملية"), max_digits=15, decimal_places=2)
 
     class Meta:
-        verbose_name = _("حركة الخزنة")
-        verbose_name_plural = _("حركات الخزنة")
+        verbose_name = _("حركة مالية")
+        verbose_name_plural = _("حركات مالية")
         ordering = ['date']  # ترتيب الحركات حسب التاريخ تصاعديًا للحصول على تسلسل صحيح
 
     def __str__(self):
-        return f"{self.get_transaction_type_display()} - {self.safe.name} - {self.amount}"
+        obj_name = self.safe.name if self.safe else self.bank.name
+        return f"{self.get_transaction_type_display()} - {obj_name} - {self.amount}"
 
     def set_transaction_type_from_invoice(self):
         """تحديد نوع العملية بناءً على نوع الفاتورة المرتبطة"""
@@ -96,49 +98,45 @@ class SafeTransaction(models.Model):
                 self.transaction_type = self.PURCHASE_RETURN_INVOICE
 
     @staticmethod
-    def recalculate_balances(safe):
+    def recalculate_balances(obj):
         """
-        إعادة حساب أرصدة جميع حركات الخزنة لخزنة معينة من البداية
+        إعادة حساب أرصدة جميع حركات الخزنة أو البنك من البداية
         """
         from django.db import transaction
 
+        is_safe = isinstance(obj, Safe)
+        
         with transaction.atomic():
-            # الحصول على جميع حركات الخزنة مرتبة حسب التاريخ
-            transactions = SafeTransaction.objects.filter(safe=safe).order_by('date')
+            # الحصول على جميع حركات الخزنة أو البنك مرتبة حسب التاريخ
+            if is_safe:
+                transactions = SafeTransaction.objects.filter(safe=obj).order_by('date')
+            else:
+                transactions = SafeTransaction.objects.filter(bank=obj).order_by('date')
 
-            # إعادة تعيين رصيد الخزنة إلى الرصيد الافتتاحي
-            current_balance = safe.initial_balance
+            # إعادة تعيين الرصيد إلى الرصيد الافتتاحي
+            current_balance = obj.initial_balance
 
             # طباعة معلومات تصحيح الأخطاء
-            print(f"إعادة حساب أرصدة الخزنة {safe.name} - الرصيد الافتتاحي: {current_balance}")
+            print(f"إعادة حساب أرصدة {obj.name} - الرصيد الافتتاحي: {current_balance}")
 
             # إعادة حساب الأرصدة لكل حركة
             for trans in transactions:
                 # تحديث الرصيد قبل العملية
-                old_balance_before = trans.balance_before
-                old_balance_after = trans.balance_after
-
                 trans.balance_before = current_balance
 
                 # إعادة حساب الرصيد بعد العملية بناءً على نوع العملية
                 if trans.transaction_type in [SafeTransaction.SALE_INVOICE, SafeTransaction.COLLECTION, SafeTransaction.DEPOSIT, SafeTransaction.INCOME]:
-                    # عمليات تزيد رصيد الخزنة
+                    # عمليات تزيد الرصيد
                     trans.balance_after = trans.balance_before + trans.amount
                 elif trans.transaction_type in [SafeTransaction.PURCHASE_INVOICE, SafeTransaction.PAYMENT, SafeTransaction.WITHDRAWAL, SafeTransaction.EXPENSE]:
-                    # عمليات تنقص رصيد الخزنة
+                    # عمليات تنقص الرصيد
                     trans.balance_after = trans.balance_before - trans.amount
                 elif trans.transaction_type == SafeTransaction.SALE_RETURN_INVOICE:
-                    # مرتجع بيع ينقص الخزنة
+                    # مرتجع بيع ينقص الرصيد
                     trans.balance_after = trans.balance_before - trans.amount
                 elif trans.transaction_type == SafeTransaction.PURCHASE_RETURN_INVOICE:
-                    # مرتجع شراء يزيد الخزنة
+                    # مرتجع شراء يزيد الرصيد
                     trans.balance_after = trans.balance_before + trans.amount
-
-                # طباعة معلومات تصحيح الأخطاء
-                print(f"العملية: {trans.get_transaction_type_display()} - المبلغ: {trans.amount}")
-                print(f"الرصيد قبل (قديم): {old_balance_before} - الرصيد بعد (قديم): {old_balance_after}")
-                print(f"الرصيد قبل (جديد): {trans.balance_before} - الرصيد بعد (جديد): {trans.balance_after}")
-                print("---")
 
                 # تحديث الرصيد الحالي للحركة التالية
                 current_balance = trans.balance_after
@@ -149,18 +147,15 @@ class SafeTransaction(models.Model):
                     balance_after=trans.balance_after
                 )
 
-            # تحديث رصيد الخزنة النهائي
+            # تحديث الرصيد النهائي
             if transactions.exists():
-                safe.current_balance = transactions.last().balance_after
+                obj.current_balance = transactions.last().balance_after
             else:
-                safe.current_balance = safe.initial_balance
+                obj.current_balance = obj.initial_balance
 
-            safe.save(update_fields=['current_balance'])
+            obj.save(update_fields=['current_balance'])
 
-            # طباعة معلومات تصحيح الأخطاء
-            print(f"الرصيد النهائي للخزنة {safe.name}: {safe.current_balance}")
-
-            return safe.current_balance
+            return obj.current_balance
 
     def save(self, *args, **kwargs):
         # تحديد نوع العملية من الفاتورة إذا كانت متوفرة
@@ -171,7 +166,10 @@ class SafeTransaction(models.Model):
         super().save(*args, **kwargs)
 
         # إعادة حساب جميع الأرصدة من البداية
-        SafeTransaction.recalculate_balances(self.safe)
+        if self.safe:
+            SafeTransaction.recalculate_balances(self.safe)
+        elif self.bank:
+            SafeTransaction.recalculate_balances(self.bank)
 
     def delete(self, *args, **kwargs):
         """
@@ -181,13 +179,14 @@ class SafeTransaction(models.Model):
 
         with transaction.atomic():
             # حفظ المعلومات المطلوبة قبل الحذف
-            safe = self.safe
+            obj = self.safe or self.bank
 
             # حذف العملية الحالية
             super().delete(*args, **kwargs)
 
             # إعادة حساب جميع الأرصدة من البداية
-            SafeTransaction.recalculate_balances(safe)
+            if obj:
+                SafeTransaction.recalculate_balances(obj)
 
 class ContactTransaction(models.Model):
     # أنواع العمليات المتعلقة بحسابات العملاء والموردين
@@ -500,16 +499,19 @@ class ProductTransaction(models.Model):
                 trans.balance_before = current_balance
 
                 # إعادة حساب الرصيد بعد العملية بناءً على نوع العملية
-                if trans.transaction_type in [ProductTransaction.SALE, ProductTransaction.SALE_RETURN]:
+                if trans.transaction_type in [ProductTransaction.SALE, ProductTransaction.PURCHASE_RETURN]:
                     # عمليات تنقص المخزون
                     trans.balance_after = trans.balance_before - trans.base_quantity
+                elif trans.transaction_type == ProductTransaction.ADJUSTMENT:
+                    # في حالة التسوية، نعتمد على إشارة base_quantity
+                    # إذا كانت موجبة فهي زيادة، وإذا كانت سالبة فهي نقصان
+                    trans.balance_after = trans.balance_before + trans.base_quantity
                 else:
-                    # عمليات تزيد المخزون
+                    # عمليات تزيد المخزون (PURCHASE, SALE_RETURN)
                     trans.balance_after = trans.balance_before + trans.base_quantity
 
                 # طباعة معلومات تصحيح الأخطاء
                 print(f"العملية: {trans.get_transaction_type_display()} - الكمية: {trans.quantity} {trans.product_unit.unit.name} - الكمية الأساسية: {trans.base_quantity}")
-                print(f"الرصيد قبل (قديم): {old_balance_before} - الرصيد بعد (قديم): {old_balance_after}")
                 print(f"الرصيد قبل (جديد): {trans.balance_before} - الرصيد بعد (جديد): {trans.balance_after}")
                 print("---")
 
@@ -680,7 +682,9 @@ class Expense(models.Model):
     category = models.ForeignKey(ExpenseCategory, on_delete=models.PROTECT, related_name='expenses',
                                verbose_name=_("قسم المصروفات"))
     safe = models.ForeignKey(Safe, on_delete=models.CASCADE, related_name='expenses',
-                           verbose_name=_("الخزنة"))
+                           verbose_name=_("الخزنة"), null=True, blank=True)
+    bank = models.ForeignKey(Bank, on_delete=models.CASCADE, related_name='expenses',
+                           verbose_name=_("البنك"), null=True, blank=True)
     payee = models.CharField(_("المستفيد"), max_length=255)
     notes = models.TextField(_("ملاحظات"), blank=True, null=True)
     reference_number = models.CharField(_("الرقم المرجعي"), max_length=50, blank=True, null=True)
@@ -718,15 +722,20 @@ class Expense(models.Model):
 
         settings = SystemSettings.get_settings()
         total_with_vat = self.amount + self.vat_amount
+        financial_obj = self.safe or self.bank
+        
+        if not financial_obj:
+            return False
 
         with transaction.atomic():
-            # إنشاء حركة الخزنة
-            current_balance = self.safe.current_balance
-            # المصروفات تنقص رصيد الخزنة (بالمبلغ الإجمالي)
+            # إنشاء حركة الخزنة أو البنك
+            current_balance = financial_obj.current_balance
+            # المصروفات تنقص رصيد الخزنة أو البنك (بالمبلغ الإجمالي)
             balance_after = current_balance - total_with_vat
 
             safe_transaction = SafeTransaction(
                 safe=self.safe,
+                bank=self.bank,
                 date=self.date,
                 amount=total_with_vat,
                 transaction_type=SafeTransaction.EXPENSE,
@@ -740,7 +749,7 @@ class Expense(models.Model):
 
             # إنشاء القيد المحاسبي التلقائي
             expense_acc = self.category.account or settings.default_expense_account
-            if expense_acc and self.safe.account:
+            if expense_acc and financial_obj.account:
                 journal_entry = JournalEntry.objects.create(
                     entry_number=f"EXP-{self.number}-{timezone.now().strftime('%Y%m%d%H%M%S')}",
                     date=self.date,
@@ -766,10 +775,10 @@ class Expense(models.Model):
                         memo=f"ضريبة قيمة مضافة على مصروف {self.number}"
                     )
 
-                # 3. إلى حساب الخزنة (الجانب الدائن) - المبلغ الإجمالي
+                # 3. إلى حساب الخزنة أو البنك (الجانب الدائن) - المبلغ الإجمالي
                 JournalItem.objects.create(
                     journal_entry=journal_entry,
-                    account=self.safe.account,
+                    account=financial_obj.account,
                     credit=total_with_vat,
                     memo=f"صرف نقدي للمصروف {self.number}"
                 )
@@ -810,7 +819,9 @@ class Income(models.Model):
     category = models.ForeignKey(IncomeCategory, on_delete=models.PROTECT, related_name='incomes',
                                verbose_name=_("قسم الإيرادات"))
     safe = models.ForeignKey(Safe, on_delete=models.CASCADE, related_name='incomes',
-                           verbose_name=_("الخزنة"))
+                           verbose_name=_("الخزنة"), null=True, blank=True)
+    bank = models.ForeignKey(Bank, on_delete=models.CASCADE, related_name='incomes',
+                           verbose_name=_("البنك"), null=True, blank=True)
     payer = models.CharField(_("الدافع"), max_length=255)
     notes = models.TextField(_("ملاحظات"), blank=True, null=True)
     reference_number = models.CharField(_("الرقم المرجعي"), max_length=50, blank=True, null=True)
@@ -848,15 +859,20 @@ class Income(models.Model):
 
         settings = SystemSettings.get_settings()
         total_with_vat = self.amount + self.vat_amount
+        financial_obj = self.safe or self.bank
+
+        if not financial_obj:
+            return False
 
         with transaction.atomic():
-            # إنشاء حركة الخزنة
-            current_balance = self.safe.current_balance
-            # الإيرادات تزيد رصيد الخزنة (بالمبلغ الإجمالي)
+            # إنشاء حركة الخزنة أو البنك
+            current_balance = financial_obj.current_balance
+            # الإيرادات تزيد رصيد الخزنة أو البنك (بالمبلغ الإجمالي)
             balance_after = current_balance + total_with_vat
 
             safe_transaction = SafeTransaction(
                 safe=self.safe,
+                bank=self.bank,
                 date=self.date,
                 amount=total_with_vat,
                 transaction_type=SafeTransaction.INCOME,
@@ -870,7 +886,7 @@ class Income(models.Model):
 
             # إنشاء القيد المحاسبي التلقائي
             income_acc = self.category.account or settings.default_income_account
-            if income_acc and self.safe.account:
+            if income_acc and financial_obj.account:
                 journal_entry = JournalEntry.objects.create(
                     entry_number=f"INC-{self.number}-{timezone.now().strftime('%Y%m%d%H%M%S')}",
                     date=self.date,
@@ -878,10 +894,10 @@ class Income(models.Model):
                     reference=self.number
                 )
 
-                # 1. من حساب الخزنة (الجانب المدين) - المبلغ الإجمالي
+                # 1. من حساب الخزنة أو البنك (الجانب المدين) - المبلغ الإجمالي
                 JournalItem.objects.create(
                     journal_entry=journal_entry,
-                    account=self.safe.account,
+                    account=financial_obj.account,
                     debit=total_with_vat,
                     memo=f"تحصيل نقدي للإيراد {self.number}"
                 )
@@ -935,7 +951,9 @@ class SafeDeposit(models.Model):
     date = models.DateTimeField(_("تاريخ المستند"), default=timezone.now)
     amount = models.DecimalField(_("المبلغ"), max_digits=15, decimal_places=2)
     safe = models.ForeignKey(Safe, on_delete=models.CASCADE, related_name='deposits',
-                           verbose_name=_("الخزنة"))
+                           verbose_name=_("الخزنة"), null=True, blank=True)
+    bank = models.ForeignKey(Bank, on_delete=models.CASCADE, related_name='deposits',
+                           verbose_name=_("البنك"), null=True, blank=True)
     source = models.CharField(_("مصدر الإيداع"), max_length=255)
     notes = models.TextField(_("ملاحظات"), blank=True, null=True)
     reference_number = models.CharField(_("الرقم المرجعي"), max_length=50, blank=True, null=True)
@@ -951,7 +969,8 @@ class SafeDeposit(models.Model):
         verbose_name_plural = _("الإيداعات في الخزن")
 
     def __str__(self):
-        return f"{self.number} - {self.safe.name} - {self.amount}"
+        name = self.safe.name if self.safe else (self.bank.name if self.bank else "N/A")
+        return f"{self.number} - {name} - {self.amount}"
 
     def save(self, *args, **kwargs):
         # حفظ النموذج أولاً
@@ -967,17 +986,22 @@ class SafeDeposit(models.Model):
         if self.is_posted and self.created_transaction:
             return False
 
-        # إنشاء حركة الخزنة
-        current_balance = self.safe.current_balance
-        # الإيداعات تزيد رصيد الخزنة
+        financial_obj = self.safe or self.bank
+        if not financial_obj:
+            return False
+
+        # إنشاء حركة الخزنة أو البنك
+        current_balance = financial_obj.current_balance
+        # الإيداعات تزيد الرصيد
         balance_after = current_balance + self.amount
 
         safe_transaction = SafeTransaction(
             safe=self.safe,
+            bank=self.bank,
             date=self.date,  # استخدام تاريخ الإيداع
             amount=self.amount,
             transaction_type=SafeTransaction.DEPOSIT,
-            description=f"إيداع في الخزنة: {self.source}",
+            description=f"إيداع: {self.source}",
             reference_number=self.number,
             balance_before=current_balance,  # تعيين الرصيد قبل العملية
             balance_after=balance_after  # تعيين الرصيد بعد العملية
@@ -1015,7 +1039,9 @@ class SafeWithdrawal(models.Model):
     date = models.DateTimeField(_("تاريخ المستند"), default=timezone.now)
     amount = models.DecimalField(_("المبلغ"), max_digits=15, decimal_places=2)
     safe = models.ForeignKey(Safe, on_delete=models.CASCADE, related_name='withdrawals',
-                           verbose_name=_("الخزنة"))
+                           verbose_name=_("الخزنة"), null=True, blank=True)
+    bank = models.ForeignKey(Bank, on_delete=models.CASCADE, related_name='withdrawals',
+                           verbose_name=_("البنك"), null=True, blank=True)
     destination = models.CharField(_("جهة السحب"), max_length=255)
     notes = models.TextField(_("ملاحظات"), blank=True, null=True)
     reference_number = models.CharField(_("الرقم المرجعي"), max_length=50, blank=True, null=True)
@@ -1031,7 +1057,8 @@ class SafeWithdrawal(models.Model):
         verbose_name_plural = _("السحوبات من الخزن")
 
     def __str__(self):
-        return f"{self.number} - {self.safe.name} - {self.amount}"
+        name = self.safe.name if self.safe else (self.bank.name if self.bank else "N/A")
+        return f"{self.number} - {name} - {self.amount}"
 
     def save(self, *args, **kwargs):
         # حفظ النموذج أولاً
@@ -1047,17 +1074,22 @@ class SafeWithdrawal(models.Model):
         if self.is_posted and self.created_transaction:
             return False
 
-        # إنشاء حركة الخزنة
-        current_balance = self.safe.current_balance
-        # السحوبات تنقص رصيد الخزنة
+        financial_obj = self.safe or self.bank
+        if not financial_obj:
+            return False
+
+        # إنشاء حركة الخزنة أو البنك
+        current_balance = financial_obj.current_balance
+        # السحوبات تنقص الرصيد
         balance_after = current_balance - self.amount
 
         safe_transaction = SafeTransaction(
             safe=self.safe,
+            bank=self.bank,
             date=self.date,  # استخدام تاريخ السحب
             amount=self.amount,
             transaction_type=SafeTransaction.WITHDRAWAL,
-            description=f"سحب من الخزنة: {self.destination}",
+            description=f"سحب: {self.destination}",
             reference_number=self.number,
             balance_before=current_balance,  # تعيين الرصيد قبل العملية
             balance_after=balance_after  # تعيين الرصيد بعد العملية
@@ -1086,6 +1118,160 @@ class SafeWithdrawal(models.Model):
         self.is_posted = False
         self.save(update_fields=['is_posted', 'created_transaction'])
 
+        return True
+
+
+class MoneyTransfer(models.Model):
+    """نموذج تحويل الأموال بين الخزن والبنوك"""
+
+    number = models.CharField(_("رقم المستند"), max_length=50, blank=True)
+    date = models.DateTimeField(_("تاريخ المستند"), default=timezone.now)
+    amount = models.DecimalField(_("المبلغ"), max_digits=15, decimal_places=2)
+    
+    # المصدر
+    from_safe = models.ForeignKey(Safe, on_delete=models.CASCADE, related_name='transfers_out',
+                                 verbose_name=_("من خزنة"), null=True, blank=True)
+    from_bank = models.ForeignKey(Bank, on_delete=models.CASCADE, related_name='transfers_out',
+                                 verbose_name=_("من بنك"), null=True, blank=True)
+    
+    # الوجهة
+    to_safe = models.ForeignKey(Safe, on_delete=models.CASCADE, related_name='transfers_in',
+                               verbose_name=_("إلى خزنة"), null=True, blank=True)
+    to_bank = models.ForeignKey(Bank, on_delete=models.CASCADE, related_name='transfers_in',
+                               verbose_name=_("إلى بنك"), null=True, blank=True)
+    
+    notes = models.TextField(_("ملاحظات"), blank=True, null=True)
+    reference_number = models.CharField(_("الرقم المرجعي"), max_length=50, blank=True, null=True)
+    is_posted = models.BooleanField(_("مرحل"), default=True)
+
+    # حركات الخزنة/البنك المرتبطة
+    withdrawal_transaction = models.OneToOneField(SafeTransaction, on_delete=models.SET_NULL,
+                                                null=True, blank=True, related_name='transfer_out',
+                                                verbose_name=_("حركة السحب المنشأة"))
+    deposit_transaction = models.OneToOneField(SafeTransaction, on_delete=models.SET_NULL,
+                                             null=True, blank=True, related_name='transfer_in',
+                                             verbose_name=_("حركة الإيداع المنشأة"))
+
+    class Meta:
+        verbose_name = _("تحويل أموال")
+        verbose_name_plural = _("تحويلات الأموال")
+
+    def __str__(self):
+        source = self.from_safe.name if self.from_safe else self.from_bank.name
+        dest = self.to_safe.name if self.to_safe else self.to_bank.name
+        return f"{self.number} - من {source} إلى {dest} - {self.amount}"
+
+    def save(self, *args, **kwargs):
+        is_new = self.pk is None
+        if not self.number and is_new:
+            # توليد رقم مستند تلقائي
+            last_transfer = MoneyTransfer.objects.all().order_by('id').last()
+            if last_transfer:
+                self.number = f"TRF-{last_transfer.id + 1}"
+            else:
+                self.number = "TRF-1"
+        
+        super().save(*args, **kwargs)
+
+        if is_new and self.is_posted and not self.withdrawal_transaction:
+            self.post_transfer()
+
+    def post_transfer(self):
+        """ترحيل التحويل وإنشاء حركات الخزنة/البنك المرتبطة والقيود المحاسبية"""
+        if not self.is_posted or (self.withdrawal_transaction and self.deposit_transaction):
+            return False
+
+        from django.db import transaction
+        from accounting.models import JournalEntry, JournalItem
+
+        source_obj = self.from_safe or self.from_bank
+        dest_obj = self.to_safe or self.to_bank
+
+        if not source_obj or not dest_obj:
+            return False
+
+        with transaction.atomic():
+            # 1. إنشاء حركة السحب من المصدر
+            withdrawal = SafeTransaction.objects.create(
+                safe=self.from_safe,
+                bank=self.from_bank,
+                date=self.date,
+                amount=self.amount,
+                transaction_type=SafeTransaction.WITHDRAWAL,
+                description=f"تحويل صادر إلى: {dest_obj.name} (مستند {self.number})",
+                reference_number=self.number,
+                balance_before=source_obj.current_balance,
+                balance_after=source_obj.current_balance - self.amount
+            )
+            self.withdrawal_transaction = withdrawal
+
+            # 2. إنشاء حركة الإيداع في الوجهة
+            # نحتاج لتحديث رصيد الوجهة إذا كان هو نفسه المصدر (حالة نادرة لكن ممكنة في البرمجة)
+            dest_current_balance = dest_obj.current_balance
+            if source_obj == dest_obj:
+                dest_current_balance = withdrawal.balance_after
+
+            deposit = SafeTransaction.objects.create(
+                safe=self.to_safe,
+                bank=self.to_bank,
+                date=self.date,
+                amount=self.amount,
+                transaction_type=SafeTransaction.DEPOSIT,
+                description=f"تحويل وارد من: {source_obj.name} (مستند {self.number})",
+                reference_number=self.number,
+                balance_before=dest_current_balance,
+                balance_after=dest_current_balance + self.amount
+            )
+            self.deposit_transaction = deposit
+
+            # 3. إنشاء القيد المحاسبي
+            if source_obj.account and dest_obj.account:
+                journal_entry = JournalEntry.objects.create(
+                    entry_number=f"TRF-{self.number}-{timezone.now().strftime('%Y%m%d%H%M%S')}",
+                    date=self.date,
+                    description=f"قيد تحويل أموال: من {source_obj.name} إلى {dest_obj.name}",
+                    reference=self.number
+                )
+
+                # من حساب الوجهة (مدين)
+                JournalItem.objects.create(
+                    journal_entry=journal_entry,
+                    account=dest_obj.account,
+                    debit=self.amount,
+                    memo=f"تحويل وارد من {source_obj.name}"
+                )
+
+                # إلى حساب المصدر (دائن)
+                JournalItem.objects.create(
+                    journal_entry=journal_entry,
+                    account=source_obj.account,
+                    credit=self.amount,
+                    memo=f"تحويل صادر إلى {dest_obj.name}"
+                )
+
+                journal_entry.post()
+
+            self.save(update_fields=['withdrawal_transaction', 'deposit_transaction'])
+        
+        return True
+
+    def unpost_transfer(self):
+        """إلغاء ترحيل التحويل وحذف الحركات والقيود"""
+        if not self.is_posted:
+            return False
+
+        with transaction.atomic():
+            if self.withdrawal_transaction:
+                self.withdrawal_transaction.delete()
+                self.withdrawal_transaction = None
+            
+            if self.deposit_transaction:
+                self.deposit_transaction.delete()
+                self.deposit_transaction = None
+            
+            self.is_posted = False
+            self.save(update_fields=['is_posted', 'withdrawal_transaction', 'deposit_transaction'])
+        
         return True
 
 
@@ -1317,3 +1503,147 @@ class StorePermitItem(models.Model):
                 pass
 
         super().save(*args, **kwargs)
+
+
+class InventoryAdjustment(models.Model):
+    """نموذج تسويات المخزون (زيادة/نقصان يدوية)"""
+    number = models.CharField(_("رقم التسوية"), max_length=50, blank=True)
+    date = models.DateTimeField(_("تاريخ التسوية"), default=timezone.now)
+    store = models.ForeignKey(Store, on_delete=models.CASCADE, related_name='adjustments', verbose_name=_("المخزن"))
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='adjustments', verbose_name=_("المنتج"))
+    quantity = models.DecimalField(_("الكمية"), max_digits=15, decimal_places=3)
+    product_unit = models.ForeignKey(ProductUnit, on_delete=models.CASCADE, verbose_name=_("الوحدة"))
+    
+    INCREASE = 'increase'
+    DECREASE = 'decrease'
+    ADJUSTMENT_TYPES = [
+        (INCREASE, _("زيادة")),
+        (DECREASE, _("نقصان")),
+    ]
+    adjustment_type = models.CharField(_("نوع التسوية"), max_length=10, choices=ADJUSTMENT_TYPES)
+    reason = models.TextField(_("سبب التسوية"), blank=True, null=True)
+    is_posted = models.BooleanField(_("مرحل"), default=True)
+    created_transaction = models.OneToOneField(ProductTransaction, on_delete=models.SET_NULL, null=True, blank=True, related_name='adjustment_record')
+
+    class Meta:
+        verbose_name = _("تسوية مخزون")
+        verbose_name_plural = _("تسويات المخزون")
+
+    def __str__(self):
+        return f"{self.number} - {self.product.name} ({self.get_adjustment_type_display()})"
+
+    def save(self, *args, **kwargs):
+        is_new = self.pk is None
+        if not self.number and is_new:
+            last = InventoryAdjustment.objects.all().order_by('id').last()
+            self.number = f"ADJ-{last.id + 1}" if last else "ADJ-1"
+        
+        super().save(*args, **kwargs)
+        
+        if is_new and self.is_posted and not self.created_transaction:
+            self.post_adjustment()
+
+    def post_adjustment(self):
+        from django.db import transaction
+        with transaction.atomic():
+            # حساب الكمية الأساسية
+            base_qty = self.quantity * self.product_unit.conversion_factor
+            
+            # في حالة النقصان، نجعل الكمية الأساسية سالبة في الحركة
+            if self.adjustment_type == self.DECREASE:
+                base_qty = -abs(base_qty)
+            else:
+                base_qty = abs(base_qty)
+            
+            trans = ProductTransaction.objects.create(
+                product=self.product,
+                date=self.date,
+                quantity=self.quantity,
+                product_unit=self.product_unit,
+                base_quantity=base_qty,
+                transaction_type=ProductTransaction.ADJUSTMENT,
+                store=self.store,
+                description=f"تسوية مخزون ({self.get_adjustment_type_display()}): {self.reason or ''}",
+                reference_number=self.number,
+                balance_before=0,
+                balance_after=0
+            )
+            self.created_transaction = trans
+            self.save(update_fields=['created_transaction'])
+            ProductTransaction.recalculate_balances(self.product)
+
+
+class StockTransfer(models.Model):
+    """نموذج تحويل المخزون بين المخازن"""
+    number = models.CharField(_("رقم التحويل"), max_length=50, blank=True)
+    date = models.DateTimeField(_("تاريخ التحويل"), default=timezone.now)
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='stock_transfers', verbose_name=_("المنتج"))
+    quantity = models.DecimalField(_("الكمية"), max_digits=15, decimal_places=3)
+    product_unit = models.ForeignKey(ProductUnit, on_delete=models.CASCADE, verbose_name=_("الوحدة"))
+    
+    from_store = models.ForeignKey(Store, on_delete=models.CASCADE, related_name='transfers_out', verbose_name=_("من مخزن"))
+    to_store = models.ForeignKey(Store, on_delete=models.CASCADE, related_name='transfers_in', verbose_name=_("إلى مخزن"))
+    
+    notes = models.TextField(_("ملاحظات"), blank=True, null=True)
+    is_posted = models.BooleanField(_("مرحل"), default=True)
+    
+    withdrawal_transaction = models.OneToOneField(ProductTransaction, on_delete=models.SET_NULL, null=True, blank=True, related_name='stock_transfer_out')
+    deposit_transaction = models.OneToOneField(ProductTransaction, on_delete=models.SET_NULL, null=True, blank=True, related_name='stock_transfer_in')
+
+    class Meta:
+        verbose_name = _("تحويل مخزني")
+        verbose_name_plural = _("تحويلات مخزنية")
+
+    def __str__(self):
+        return f"{self.number} - {self.product.name} من {self.from_store.name} إلى {self.to_store.name}"
+
+    def save(self, *args, **kwargs):
+        is_new = self.pk is None
+        if not self.number and is_new:
+            last = StockTransfer.objects.all().order_by('id').last()
+            self.number = f"TRF-ST-{last.id + 1}" if last else "TRF-ST-1"
+        
+        super().save(*args, **kwargs)
+        
+        if is_new and self.is_posted and not (self.withdrawal_transaction and self.deposit_transaction):
+            self.post_transfer()
+
+    def post_transfer(self):
+        from django.db import transaction
+        with transaction.atomic():
+            base_qty = self.quantity * self.product_unit.conversion_factor
+            
+            # 1. حركة الصرف من المخزن المصدر (نستخدم SALE للصرف)
+            withdrawal = ProductTransaction.objects.create(
+                product=self.product,
+                date=self.date,
+                quantity=self.quantity,
+                product_unit=self.product_unit,
+                base_quantity=base_qty,
+                transaction_type=ProductTransaction.SALE,
+                store=self.from_store,
+                description=f"تحويل صادر إلى {self.to_store.name} (مستند {self.number})",
+                reference_number=self.number,
+                balance_before=0,
+                balance_after=0
+            )
+            
+            # 2. حركة الإيداع في المخزن الوجهة (نستخدم PURCHASE للإيداع)
+            deposit = ProductTransaction.objects.create(
+                product=self.product,
+                date=self.date,
+                quantity=self.quantity,
+                product_unit=self.product_unit,
+                base_quantity=base_qty,
+                transaction_type=ProductTransaction.PURCHASE,
+                store=self.to_store,
+                description=f"تحويل وارد من {self.from_store.name} (مستند {self.number})",
+                reference_number=self.number,
+                balance_before=0,
+                balance_after=0
+            )
+            
+            self.withdrawal_transaction = withdrawal
+            self.deposit_transaction = deposit
+            self.save(update_fields=['withdrawal_transaction', 'deposit_transaction'])
+            ProductTransaction.recalculate_balances(self.product)

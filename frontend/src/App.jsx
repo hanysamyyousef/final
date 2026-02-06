@@ -4,11 +4,14 @@ import Login from './Login';
 import Layout from './Layout';
 import Dashboard from './Dashboard';
 import Companies from './Companies';
+import Branches from './Branches';
 import Products from './Products';
 import Invoices from './Invoices';
 import Accounting from './Accounting';
+import FixedAssets from './FixedAssets';
 import JournalEntries from './JournalEntries';
 import Inventory from './Inventory';
+import InventoryOperations from './InventoryOperations';
 import Contacts from './Contacts';
 import Employees from './Employees';
 import Representatives from './Representatives';
@@ -16,6 +19,7 @@ import Drivers from './Drivers';
 import Finances from './Finances';
 import Reports from './Reports';
 import Settings from './Settings';
+import UsersPermissions from './UsersPermissions';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -73,6 +77,18 @@ function App() {
           } 
         />
         <Route 
+          path="/branches" 
+          element={
+            isAuthenticated ? (
+              <Layout onLogout={handleLogout}>
+                <Branches />
+              </Layout>
+            ) : (
+              <Navigate to="/login" />
+            )
+          } 
+        />
+        <Route 
           path="/products" 
           element={
             isAuthenticated ? (
@@ -97,11 +113,47 @@ function App() {
           } 
         />
         <Route 
+          path="/invoices/:type" 
+          element={
+            isAuthenticated ? (
+              <Layout onLogout={handleLogout}>
+                <Invoices />
+              </Layout>
+            ) : (
+              <Navigate to="/login" />
+            )
+          } 
+        />
+        <Route 
           path="/accounting" 
           element={
             isAuthenticated ? (
               <Layout onLogout={handleLogout}>
                 <Accounting />
+              </Layout>
+            ) : (
+              <Navigate to="/login" />
+            )
+          } 
+        />
+        <Route 
+          path="/accounting/:sub" 
+          element={
+            isAuthenticated ? (
+              <Layout onLogout={handleLogout}>
+                <Accounting />
+              </Layout>
+            ) : (
+              <Navigate to="/login" />
+            )
+          } 
+        />
+        <Route 
+          path="/fixed-assets" 
+          element={
+            isAuthenticated ? (
+              <Layout onLogout={handleLogout}>
+                <FixedAssets />
               </Layout>
             ) : (
               <Navigate to="/login" />
@@ -134,6 +186,18 @@ function App() {
         />
         <Route 
           path="/employees" 
+          element={
+            isAuthenticated ? (
+              <Layout onLogout={handleLogout}>
+                <Employees />
+              </Layout>
+            ) : (
+              <Navigate to="/login" />
+            )
+          } 
+        />
+        <Route 
+          path="/employees/:sub" 
           element={
             isAuthenticated ? (
               <Layout onLogout={handleLogout}>
@@ -193,11 +257,47 @@ function App() {
           } 
         />
         <Route 
+          path="/inventory-operations" 
+          element={
+            isAuthenticated ? (
+              <Layout onLogout={handleLogout}>
+                <InventoryOperations />
+              </Layout>
+            ) : (
+              <Navigate to="/login" />
+            )
+          } 
+        />
+        <Route 
+          path="/inventory-operations/:type" 
+          element={
+            isAuthenticated ? (
+              <Layout onLogout={handleLogout}>
+                <InventoryOperations />
+              </Layout>
+            ) : (
+              <Navigate to="/login" />
+            )
+          } 
+        />
+        <Route 
           path="/reports" 
           element={
             isAuthenticated ? (
               <Layout onLogout={handleLogout}>
                 <Reports />
+              </Layout>
+            ) : (
+              <Navigate to="/login" />
+            )
+          } 
+        />
+        <Route 
+          path="/users-permissions" 
+          element={
+            isAuthenticated ? (
+              <Layout onLogout={handleLogout}>
+                <UsersPermissions />
               </Layout>
             ) : (
               <Navigate to="/login" />

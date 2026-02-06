@@ -108,11 +108,15 @@ const Dashboard = () => {
           </div>
           <div className="h-80 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={stats.chart_data && stats.chart_data.length > 0 ? stats.chart_data : [{name: 'لا يوجد بيانات', sales: 0}]}>
+              <AreaChart data={stats.chart_data && stats.chart_data.length > 0 ? stats.chart_data : [{name: 'لا يوجد بيانات', sales: 0, expenses: 0}]}>
                 <defs>
                   <linearGradient id="colorSales" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#2563eb" stopOpacity={0.1}/>
                     <stop offset="95%" stopColor="#2563eb" stopOpacity={0}/>
+                  </linearGradient>
+                  <linearGradient id="colorExpenses" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#e11d48" stopOpacity={0.1}/>
+                    <stop offset="95%" stopColor="#e11d48" stopOpacity={0}/>
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
@@ -122,7 +126,8 @@ const Dashboard = () => {
                   contentStyle={{borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', direction: 'rtl'}}
                   itemStyle={{fontFamily: 'Cairo', fontWeight: 700}}
                 />
-                <Area type="monotone" dataKey="sales" stroke="#2563eb" strokeWidth={4} fillOpacity={1} fill="url(#colorSales)" />
+                <Area type="monotone" dataKey="sales" name="المبيعات" stroke="#2563eb" strokeWidth={4} fillOpacity={1} fill="url(#colorSales)" />
+                <Area type="monotone" dataKey="expenses" name="المصروفات" stroke="#e11d48" strokeWidth={4} fillOpacity={1} fill="url(#colorExpenses)" />
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -151,6 +156,70 @@ const Dashboard = () => {
           <button className="w-full mt-8 py-4 bg-gray-50 text-gray-600 font-black rounded-2xl hover:bg-gray-100 transition-all">
             عرض كافة التفاصيل
           </button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* ملخص المديونيات */}
+        <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm">
+          <h3 className="text-lg font-black text-gray-900 mb-6 flex items-center gap-2">
+            <Activity className="text-blue-600" size={20} />
+            ملخص المديونيات
+          </h3>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="bg-blue-50 p-6 rounded-2xl">
+              <p className="text-sm font-bold text-blue-600 mb-1">مديونيات العملاء</p>
+              <p className="text-2xl font-black text-blue-900">
+                {(stats.debt_summary?.total_customers_balance || 0).toLocaleString('ar-EG')}
+                <span className="text-xs font-bold mr-1">ج.م</span>
+              </p>
+            </div>
+            <div className="bg-rose-50 p-6 rounded-2xl">
+              <p className="text-sm font-bold text-rose-600 mb-1">مديونيات الموردين</p>
+              <p className="text-2xl font-black text-rose-900">
+                {(stats.debt_summary?.total_suppliers_balance || 0).toLocaleString('ar-EG')}
+                <span className="text-xs font-bold mr-1">ج.م</span>
+              </p>
+            </div>
+          </div>
+          <div className="mt-4 p-4 bg-gray-50 rounded-2xl flex justify-between items-center">
+            <span className="font-bold text-gray-600">إجمالي المديونية العامة</span>
+            <span className="text-xl font-black text-gray-900">
+              {(stats.debt_summary?.total_debt || 0).toLocaleString('ar-EG')}
+              <span className="text-xs font-bold mr-1">ج.م</span>
+            </span>
+          </div>
+        </div>
+
+        {/* أفضل العملاء */}
+        <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm">
+          <h3 className="text-lg font-black text-gray-900 mb-6 flex items-center gap-2">
+            <Users className="text-indigo-600" size={20} />
+            أفضل العملاء (حسب المشتريات)
+          </h3>
+          <div className="space-y-4">
+            {(stats.top_customers || []).map((customer, i) => (
+              <div key={i} className="flex items-center justify-between p-3 rounded-2xl hover:bg-gray-50 transition-all border border-transparent hover:border-gray-100">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-black">
+                    {i + 1}
+                  </div>
+                  <div>
+                    <p className="font-bold text-gray-900">{customer.name}</p>
+                    <p className="text-xs text-gray-500">{customer.invoice_count} فاتورة</p>
+                  </div>
+                </div>
+                <div className="text-left">
+                  <p className="font-black text-gray-900">{customer.total_spent.toLocaleString('ar-EG')} ج.م</p>
+                </div>
+              </div>
+            ))}
+            {(!stats.top_customers || stats.top_customers.length === 0) && (
+              <div className="text-center py-8 text-gray-400 font-medium">
+                لا يوجد بيانات عملاء حالياً
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

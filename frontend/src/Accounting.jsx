@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useParams } from 'react-router-dom';
 import api from './api';
 import { 
   Plus, 
@@ -29,6 +30,15 @@ const Accounting = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingAccount, setEditingAccount] = useState(null);
   const [expandedAccounts, setExpandedAccounts] = useState({});
+  const [currentFolder, setCurrentFolder] = useState(null);
+  const [navigationPath, setNavigationPath] = useState([]);
+  const [stats, setStats] = useState({
+    assets: 0,
+    liabilities: 0,
+    income: 0,
+    expenses: 0,
+    net_profit: 0
+  });
   const [formData, setFormData] = useState({
     name: '',
     code: '',
@@ -36,6 +46,33 @@ const Accounting = () => {
     parent: '',
     is_selectable: true
   });
+
+  const fetchStats = async () => {
+    try {
+      const response = await api.get('/accounting/api/reports/dashboard_stats/');
+      setStats(response.data);
+    } catch (err) {
+      console.error('Error fetching accounting stats:', err);
+    }
+  };
+
+  const navigateToFolder = (folder) => {
+    setCurrentFolder(folder);
+    setNavigationPath(prev => [...prev, folder]);
+    setSearchTerm(''); // Clear search when navigating
+  };
+
+  const navigateToPath = (index) => {
+    if (index === -1) {
+      setCurrentFolder(null);
+      setNavigationPath([]);
+    } else {
+      const newPath = navigationPath.slice(0, index + 1);
+      setNavigationPath(newPath);
+      setCurrentFolder(newPath[newPath.length - 1]);
+    }
+    setSearchTerm('');
+  };
 
   const toggleExpand = (accountId) => {
     setExpandedAccounts(prev => ({
@@ -79,6 +116,9 @@ const Accounting = () => {
         if (!acc.parent) initialExpanded[acc.id] = true;
       });
       setExpandedAccounts(initialExpanded);
+      
+      // Fetch stats whenever accounts are updated
+      fetchStats();
     } catch (err) {
       console.error('Error fetching accounts:', err);
     } finally {
@@ -105,8 +145,8 @@ const Accounting = () => {
       setFormData({
         name: '',
         code: '',
-        account_type: 'asset',
-        parent: '',
+        account_type: currentFolder?.account_type || 'asset',
+        parent: currentFolder?.id || '',
         is_selectable: true
       });
     }
@@ -171,41 +211,54 @@ const Accounting = () => {
     const isExpanded = expandedAccounts[account.id];
     const isFolder = !account.is_selectable || hasChildren;
 
-    const matchesSearch = searchTerm === '' || 
-      account.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      account.code.toLowerCase().includes(searchTerm.toLowerCase());
+    // Recursive search check
+    const checkMatch = (acc) => {
+      const matchSelf = acc.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                       acc.code.toLowerCase().includes(searchTerm.toLowerCase());
+      if (matchSelf) return true;
+      return acc.children && acc.children.some(child => checkMatch(child));
+    };
 
-    if (searchTerm !== '' && !matchesSearch && !account.children.some(c => c.name.toLowerCase().includes(searchTerm.toLowerCase()) || c.code.toLowerCase().includes(searchTerm.toLowerCase()))) {
-      return null;
-    }
+    const shouldShow = searchTerm === '' || checkMatch(account);
+
+    useEffect(() => {
+      if (searchTerm !== '' && !isExpanded && account.children.some(child => checkMatch(child))) {
+        setExpandedAccounts(prev => ({ ...prev, [account.id]: true }));
+      }
+    }, [searchTerm, account.id, account.children, isExpanded]);
+
+    if (!shouldShow) return null;
 
     return (
       <React.Fragment>
-        <tr className="hover:bg-blue-50/30 transition group border-b border-gray-50">
+        <tr className={`hover:bg-blue-50/30 transition group border-b border-gray-50 ${isFolder ? 'bg-gray-50/30 cursor-pointer' : ''}`}>
           <td className="p-4 text-sm font-mono text-gray-500">
-            <div className="flex items-center gap-2" style={{ paddingRight: `${level * 24}px` }}>
-              {isFolder && (
+            <div className="flex items-center gap-2" style={{ paddingRight: searchTerm ? `${level * 24}px` : '0px' }}>
+              {isFolder && searchTerm !== '' && (
                 <button 
                   onClick={() => toggleExpand(account.id)}
-                  className="p-1 hover:bg-gray-100 rounded transition text-gray-400"
+                  className="p-1 hover:bg-gray-100 rounded transition text-gray-400 hover:text-blue-600"
                 >
                   {isExpanded ? <ChevronDown size={14} /> : <ChevronLeft size={14} />}
                 </button>
               )}
-              {!isFolder && <div className="w-6" />}
+              {(!isFolder || searchTerm === '') && <div className="w-6" />}
               {account.code}
             </div>
           </td>
           <td className="p-4">
-            <div className="flex items-center gap-3">
-              <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${getAccountTypeColor(account.account_type)}`}>
+            <div 
+              className="flex items-center gap-3"
+              onClick={() => isFolder ? navigateToFolder(account) : null}
+            >
+              <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${isFolder ? 'bg-amber-50 text-amber-600' : getAccountTypeColor(account.account_type)}`}>
                 {isFolder ? (
-                  isExpanded ? <FolderOpen size={16} /> : <Folder size={16} />
+                  isExpanded && searchTerm !== '' ? <FolderOpen size={16} /> : <Folder size={16} />
                 ) : (
                   <BookOpen size={16} />
                 )}
               </div>
-              <span className={`font-bold ${isFolder ? 'text-gray-900' : 'text-gray-700'}`}>
+              <span className={`font-bold hover:text-blue-600 transition ${isFolder ? 'text-gray-900 text-base' : 'text-gray-700 text-sm'}`}>
                 {account.name}
               </span>
             </div>
@@ -245,7 +298,7 @@ const Accounting = () => {
             </div>
           </td>
         </tr>
-        {isExpanded && account.children && account.children.map(child => (
+        {searchTerm !== '' && isExpanded && account.children && account.children.map(child => (
           <AccountRow key={child.id} account={child} level={level + 1} />
         ))}
       </React.Fragment>
@@ -253,6 +306,16 @@ const Accounting = () => {
   };
 
   const accountTree = buildAccountTree(accounts);
+  
+  // Filter accounts for current view
+  const displayAccounts = searchTerm !== '' 
+    ? accountTree 
+    : (currentFolder 
+        ? accounts
+            .filter(a => a.parent === currentFolder.id)
+            .map(a => ({ ...a, children: accounts.filter(child => child.parent === a.id) }))
+        : accountTree
+      );
 
   if (loading && accounts.length === 0) return (
     <div className="flex items-center justify-center min-h-[400px]">
@@ -292,7 +355,10 @@ const Accounting = () => {
           </div>
           <div className="mt-4">
             <p className="text-blue-100 text-sm">إجمالي الدخل الصافي</p>
-            <h3 className="text-3xl font-black mt-1">45,200.00 <span className="text-sm font-medium opacity-80">ج.م</span></h3>
+            <h3 className="text-3xl font-black mt-1">
+              {stats.net_profit.toLocaleString('ar-EG', { minimumFractionDigits: 2 })}
+              <span className="text-sm font-medium opacity-80 mr-1">ج.م</span>
+            </h3>
           </div>
         </div>
         <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
@@ -300,11 +366,14 @@ const Accounting = () => {
             <div className="p-3 bg-green-50 text-green-600 rounded-2xl">
               <TrendingUp size={24} />
             </div>
-            <span className="text-xs font-bold text-green-600 bg-green-50 px-2 py-1 rounded-full">+12%</span>
+            <span className="text-xs font-bold text-green-600 bg-green-50 px-2 py-1 rounded-full">الإيرادات</span>
           </div>
           <div className="mt-4">
-            <p className="text-gray-500 text-sm">إجمالي الإيرادات</p>
-            <h3 className="text-2xl font-black text-gray-900 mt-1">128,500.00 <span className="text-sm font-medium text-gray-400">ج.م</span></h3>
+            <p className="text-gray-500 text-sm">إجمالي إيرادات الشهر</p>
+            <h3 className="text-2xl font-black text-gray-900 mt-1">
+              {stats.income.toLocaleString('ar-EG', { minimumFractionDigits: 2 })}
+              <span className="text-sm font-medium text-gray-400 mr-1">ج.م</span>
+            </h3>
           </div>
         </div>
         <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
@@ -312,16 +381,41 @@ const Accounting = () => {
             <div className="p-3 bg-rose-50 text-rose-600 rounded-2xl">
               <Calculator size={24} />
             </div>
-            <span className="text-xs font-bold text-rose-600 bg-rose-50 px-2 py-1 rounded-full">+5%</span>
+            <span className="text-xs font-bold text-rose-600 bg-rose-50 px-2 py-1 rounded-full">المصروفات</span>
           </div>
           <div className="mt-4">
-            <p className="text-gray-500 text-sm">إجمالي المصروفات</p>
-            <h3 className="text-2xl font-black text-gray-900 mt-1">83,300.00 <span className="text-sm font-medium text-gray-400">ج.م</span></h3>
+            <p className="text-gray-500 text-sm">إجمالي مصروفات الشهر</p>
+            <h3 className="text-2xl font-black text-gray-900 mt-1">
+              {stats.expenses.toLocaleString('ar-EG', { minimumFractionDigits: 2 })}
+              <span className="text-sm font-medium text-gray-400 mr-1">ج.م</span>
+            </h3>
           </div>
         </div>
       </div>
 
       <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col md:flex-row gap-4 items-center">
+        <div className="flex items-center gap-2 overflow-x-auto w-full md:w-auto pb-2 md:pb-0 border-b md:border-b-0 md:border-l border-gray-100 ml-4 pl-4">
+          <button 
+            onClick={() => navigateToPath(-1)}
+            className={`p-2 rounded-lg transition flex items-center gap-1 whitespace-nowrap ${!currentFolder ? 'bg-blue-50 text-blue-600 font-bold' : 'text-gray-400 hover:bg-gray-50'}`}
+          >
+            <Folder size={18} />
+            الدليل الرئيسي
+          </button>
+          {navigationPath.map((folder, index) => (
+            <React.Fragment key={folder.id}>
+              <ChevronLeft size={14} className="text-gray-300 flex-shrink-0" />
+              <button 
+                onClick={() => navigateToPath(index)}
+                className={`p-2 rounded-lg transition flex items-center gap-1 whitespace-nowrap ${index === navigationPath.length - 1 ? 'bg-blue-50 text-blue-600 font-bold' : 'text-gray-400 hover:bg-gray-50'}`}
+              >
+                <FolderOpen size={18} />
+                {folder.name}
+              </button>
+            </React.Fragment>
+          ))}
+        </div>
+
         <div className="relative flex-1 w-full">
           <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
           <input 
@@ -347,9 +441,17 @@ const Accounting = () => {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
-            {accountTree.map((account) => (
-              <AccountRow key={account.id} account={account} />
-            ))}
+            {displayAccounts.length > 0 ? (
+              displayAccounts.map((account) => (
+                <AccountRow key={account.id} account={account} />
+              ))
+            ) : (
+              <tr>
+                <td colSpan="6" className="p-8 text-center text-gray-400">
+                  {searchTerm !== '' ? 'لا توجد نتائج بحث تطابق مدخلاتك' : 'هذا المجلد فارغ حالياً'}
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>

@@ -10,6 +10,11 @@ router.register(r'contact-transactions', api_views.ContactTransactionViewSet)
 router.register(r'product-transactions', api_views.ProductTransactionViewSet)
 router.register(r'expenses', api_views.ExpenseViewSet)
 router.register(r'incomes', api_views.IncomeViewSet)
+router.register(r'safe-deposits', api_views.SafeDepositViewSet)
+router.register(r'safe-withdrawals', api_views.SafeWithdrawalViewSet)
+router.register(r'money-transfers', api_views.MoneyTransferViewSet)
+router.register(r'inventory-adjustments', api_views.InventoryAdjustmentViewSet)
+router.register(r'stock-transfers', api_views.StockTransferViewSet)
 
 urlpatterns = [
     path('api/', include(router.urls)),
