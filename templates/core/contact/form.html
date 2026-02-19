@@ -9,15 +9,15 @@
     </div>
     <div class="col-md-4 text-end">
         {% if contact_type == 'customer' or contact.contact_type == 'customer' %}
-            <a href="{% url 'customer_list' %}" class="btn btn-secondary">
+            <a href="{% url 'core:customer_list' %}" class="btn btn-secondary">
                 <i class="fas fa-arrow-right"></i> العودة للقائمة
             </a>
         {% elif contact_type == 'supplier' or contact.contact_type == 'supplier' %}
-            <a href="{% url 'supplier_list' %}" class="btn btn-secondary">
+            <a href="{% url 'core:supplier_list' %}" class="btn btn-secondary">
                 <i class="fas fa-arrow-right"></i> العودة للقائمة
             </a>
         {% else %}
-            <a href="{% url 'contact_list' %}" class="btn btn-secondary">
+            <a href="{% url 'core:contact_list' %}" class="btn btn-secondary">
                 <i class="fas fa-arrow-right"></i> العودة للقائمة
             </a>
         {% endif %}
@@ -177,15 +177,15 @@
                     <i class="fas fa-save"></i> حفظ
                 </button>
                 {% if contact_type == 'customer' or contact.contact_type == 'customer' %}
-                    <a href="{% url 'customer_list' %}" class="btn btn-secondary">
+                    <a href="{% url 'core:customer_list' %}" class="btn btn-secondary">
                         <i class="fas fa-times"></i> إلغاء
                     </a>
                 {% elif contact_type == 'supplier' or contact.contact_type == 'supplier' %}
-                    <a href="{% url 'supplier_list' %}" class="btn btn-secondary">
+                    <a href="{% url 'core:supplier_list' %}" class="btn btn-secondary">
                         <i class="fas fa-times"></i> إلغاء
                     </a>
                 {% else %}
-                    <a href="{% url 'contact_list' %}" class="btn btn-secondary">
+                    <a href="{% url 'core:contact_list' %}" class="btn btn-secondary">
                         <i class="fas fa-times"></i> إلغاء
                     </a>
                 {% endif %}

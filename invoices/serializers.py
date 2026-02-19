@@ -4,6 +4,7 @@ from .models import Invoice, InvoiceItem, Payment
 class PaymentSerializer(serializers.ModelSerializer):
     contact_name = serializers.CharField(source='contact.name', read_only=True)
     safe_name = serializers.CharField(source='safe.name', read_only=True)
+    bank_name = serializers.CharField(source='bank.name', read_only=True)
     payment_type_display = serializers.CharField(source='get_payment_type_display', read_only=True)
     invoice_number = serializers.CharField(source='invoice.number', read_only=True)
     expense_category_name = serializers.CharField(source='expense_category.name', read_only=True)
@@ -12,7 +13,7 @@ class PaymentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Payment
         fields = '__all__'
-        read_only_fields = ['number', 'is_posted', 'created_transaction', 'contact_transaction']
+        read_only_fields = ['number', 'is_posted', 'created_transaction', 'contact_transaction', 'journal_entry']
 
     def create(self, validated_data):
         # Generate number if not provided
@@ -57,11 +58,32 @@ class InvoiceSerializer(serializers.ModelSerializer):
     items = InvoiceItemSerializer(many=True)
     invoice_type_display = serializers.CharField(source='get_invoice_type_display', read_only=True)
     payment_type_display = serializers.CharField(source='get_payment_type_display', read_only=True)
+    previous_balance = serializers.SerializerMethodField()
 
     class Meta:
         model = Invoice
         fields = '__all__'
         read_only_fields = ['total_amount', 'discount_amount', 'tax_amount', 'net_amount', 'remaining_amount']
+
+    def get_previous_balance(self, obj):
+        if not obj.contact:
+            return 0
+        
+        # الرصيد الحالي حسب نوع الفاتورة
+        if obj.invoice_type in ['sale', 'sale_return']:
+            current_balance = obj.contact.current_balance
+            # إذا كانت الفاتورة آجلة، فالتأثير موجود في الرصيد الحالي
+            # الرصيد السابق = الرصيد الحالي - تأثير هذه الفاتورة
+            if obj.invoice_type == 'sale':
+                return current_balance - obj.remaining_amount
+            else: # sale_return
+                return current_balance + obj.remaining_amount
+        else: # purchase, purchase_return
+            current_balance = obj.contact.current_supplier_balance
+            if obj.invoice_type == 'purchase':
+                return current_balance - obj.remaining_amount
+            else: # purchase_return
+                return current_balance + obj.remaining_amount
 
     def create(self, validated_data):
         items_data = validated_data.pop('items', [])

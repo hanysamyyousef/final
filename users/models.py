@@ -19,6 +19,10 @@ class Profile(models.Model):
     role = models.CharField(_("الدور"), max_length=20, choices=ROLE_CHOICES, default='employee')
     email_notifications = models.BooleanField(_("إشعارات البريد الإلكتروني"), default=True)
     browser_notifications = models.BooleanField(_("إشعارات المتصفح"), default=True)
+    
+    # تحديد الفروع المسموحة للمستخدم
+    allowed_branches = models.ManyToManyField('core.Branch', blank=True, related_name='assigned_users', verbose_name=_("الفروع المسموحة"))
+    manage_all_branches = models.BooleanField(_("إدارة جميع الفروع"), default=False)
 
     class Meta:
         verbose_name = _("الملف الشخصي")

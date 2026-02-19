@@ -8,7 +8,7 @@
         <h2 class="mb-0">المخازن</h2>
     </div>
     <div class="col-md-4 text-end">
-        <a href="{% url 'store_add' %}" class="btn btn-primary">
+        <a href="{% url 'core:store_add' %}" class="btn btn-primary">
             <i class="fas fa-plus-circle"></i> إضافة مخزن جديد
         </a>
     </div>
@@ -36,12 +36,12 @@
                                 <td>{{ forloop.counter }}</td>
                                 <td>{{ store.name }}</td>
                                 <td>
-                                    <a href="{% url 'branch_detail' store.branch.pk %}">
+                                    <a href="{% url 'core:branch_detail' store.branch.pk %}">
                                         {{ store.branch.name }}
                                     </a>
                                 </td>
                                 <td>
-                                    <a href="{% url 'company_detail' store.branch.company.pk %}">
+                                    <a href="{% url 'core:company_detail' store.branch.company.pk %}">
                                         {{ store.branch.company.name }}
                                     </a>
                                 </td>
@@ -49,13 +49,13 @@
                                 <td>{{ store.keeper|default:"-" }}</td>
                                 <td>
                                     <div class="btn-group">
-                                        <a href="{% url 'store_detail' store.pk %}" class="btn btn-sm btn-info">
+                                        <a href="{% url 'core:store_detail' store.pk %}" class="btn btn-sm btn-info">
                                             <i class="fas fa-eye"></i>
                                         </a>
-                                        <a href="{% url 'store_edit' store.pk %}" class="btn btn-sm btn-warning">
+                                        <a href="{% url 'core:store_edit' store.pk %}" class="btn btn-sm btn-warning">
                                             <i class="fas fa-edit"></i>
                                         </a>
-                                        <a href="{% url 'store_delete' store.pk %}" class="btn btn-sm btn-danger">
+                                        <a href="{% url 'core:store_delete' store.pk %}" class="btn btn-sm btn-danger">
                                             <i class="fas fa-trash"></i>
                                         </a>
                                     </div>
@@ -67,7 +67,7 @@
             </div>
         {% else %}
             <div class="alert alert-info">
-                لا توجد مخازن مسجلة حتى الآن. <a href="{% url 'store_add' %}">أضف مخزن جديد</a>
+                لا توجد مخازن مسجلة حتى الآن. <a href="{% url 'core:store_add' %}">أضف مخزن جديد</a>
             </div>
         {% endif %}
     </div>

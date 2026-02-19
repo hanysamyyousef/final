@@ -18,11 +18,65 @@ import {
   Building2,
   ArrowLeftRight,
   TrendingUp,
-  TrendingDown
+  TrendingDown,
+  AlertTriangle
 } from 'lucide-react';
 
 const Finances = () => {
   const [activeTab, setActiveTab] = useState('transactions');
+  const [isDirty, setIsDirty] = useState(false);
+  const [showExitConfirm, setShowExitConfirm] = useState(false);
+  const [pendingTab, setPendingTab] = useState(null);
+  const [pendingClose, setPendingClose] = useState(false);
+
+  // Handle browser back/close
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      if (isDirty) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [isDirty]);
+
+  const handleSafeTabChange = (tab) => {
+    if (isDirty) {
+      setPendingTab(tab);
+      setShowExitConfirm(true);
+    } else {
+      setActiveTab(tab);
+    }
+  };
+
+  const handleSafeCloseModal = () => {
+    if (isDirty) {
+      setPendingClose(true);
+      setShowExitConfirm(true);
+    } else {
+      setIsModalOpen(false);
+      setIsCategoryModalOpen(false);
+    }
+  };
+
+  const confirmExit = () => {
+    setIsDirty(false);
+    setShowExitConfirm(false);
+    if (pendingTab) {
+      setActiveTab(pendingTab);
+      setPendingTab(null);
+    }
+    if (pendingClose) {
+      setIsModalOpen(false);
+      setIsCategoryModalOpen(false);
+      setPendingClose(false);
+    }
+  };
+
+  const markDirty = () => {
+    if (!isDirty) setIsDirty(true);
+  };
   const [transactions, setTransactions] = useState([]);
   const [moneyTransfers, setMoneyTransfers] = useState([]);
   const [payments, setPayments] = useState([]);
@@ -82,6 +136,7 @@ const Finances = () => {
     date: new Date().toISOString().split('T')[0],
     amount: 0,
     category: '',
+    contact: '',
     safe: '',
     bank: '',
     payee: '',
@@ -93,6 +148,7 @@ const Finances = () => {
     date: new Date().toISOString().split('T')[0],
     amount: 0,
     category: '',
+    contact: '',
     safe: '',
     bank: '',
     payer: '',
@@ -127,6 +183,7 @@ const Finances = () => {
   const [transferDestType, setTransferDestType] = useState('safe'); // 'safe' or 'bank'
 
   const handleOpenModal = (item = null) => {
+    setIsDirty(false); // Reset dirty state when opening modal
     if (activeTab === 'expense_categories' || activeTab === 'income_categories') {
       setCategoryType(activeTab === 'expense_categories' ? 'expense' : 'income');
       if (item) {
@@ -196,9 +253,10 @@ const Finances = () => {
       if (item) {
         setEditingItem(item);
         setExpenseFormData({
-          date: item.date.split('T')[0],
+          date: item.date ? item.date.split('T')[0] : new Date().toISOString().split('T')[0],
           amount: item.amount,
           category: item.category,
+          contact: item.contact || '',
           safe: item.safe || '',
           bank: item.bank || '',
           payee: item.payee,
@@ -212,6 +270,7 @@ const Finances = () => {
           date: new Date().toISOString().split('T')[0],
           amount: 0,
           category: '',
+          contact: '',
           safe: safes[0]?.id || '',
           bank: '',
           payee: '',
@@ -224,9 +283,10 @@ const Finances = () => {
       if (item) {
         setEditingItem(item);
         setIncomeFormData({
-          date: item.date.split('T')[0],
+          date: item.date ? item.date.split('T')[0] : new Date().toISOString().split('T')[0],
           amount: item.amount,
           category: item.category,
+          contact: item.contact || '',
           safe: item.safe || '',
           bank: item.bank || '',
           payer: item.payer,
@@ -240,6 +300,7 @@ const Finances = () => {
           date: new Date().toISOString().split('T')[0],
           amount: 0,
           category: '',
+          contact: '',
           safe: safes[0]?.id || '',
           bank: '',
           payer: '',
@@ -250,18 +311,128 @@ const Finances = () => {
       }
     } else if (activeTab === 'transactions') {
       if (item) {
-        setEditingItem(item);
-        setSafeTransactionFormData({
-          date: item.date.split('T')[0],
-          amount: item.amount,
-          type: item.transaction_type === 'deposit' ? 'deposit' : 'withdrawal',
-          safe: item.safe || '',
-          bank: item.bank || '',
-          source_destination: item.description || '',
-          notes: item.notes || '',
-          reference_number: item.reference_number || ''
-        });
-        setPaymentSource(item.bank ? 'bank' : 'safe');
+        if (item.transaction_type === 'collection' || item.transaction_type === 'payment') {
+          // جلب بيانات السند كاملة للتأكد من وجود التصنيفات والفاتورة
+          setLoading(true);
+          api.get(`/invoices/api/payments/${item.source_id}/`)
+            .then(res => {
+              const payment = res.data;
+              setEditingItem(payment);
+              setPaymentFormData({
+                date: payment.date ? payment.date.split('T')[0] : new Date().toISOString().split('T')[0],
+                amount: payment.amount,
+                payment_type: payment.payment_type,
+                contact: payment.contact || '',
+                safe: payment.safe || '',
+                bank: payment.bank || '',
+                expense_category: payment.expense_category || '',
+                income_category: payment.income_category || '',
+                reference_number: payment.reference_number || '',
+                notes: payment.notes || '',
+                invoice: payment.invoice || ''
+              });
+              setPaymentSource(payment.bank ? 'bank' : 'safe');
+              setActiveTab(payment.payment_type === 'receipt' ? 'receipts' : 'payments');
+              setIsModalOpen(true);
+            })
+            .catch(err => {
+              console.error('Error fetching payment details:', err);
+              alert('حدث خطأ أثناء جلب بيانات السند');
+            })
+            .finally(() => setLoading(false));
+          return;
+        } else if (item.transaction_type === 'expense') {
+          setLoading(true);
+          api.get(`/finances/api/expenses/${item.source_id}/`)
+            .then(res => {
+              const expense = res.data;
+              setEditingItem(expense);
+              setExpenseFormData({
+                date: expense.date ? expense.date.split('T')[0] : new Date().toISOString().split('T')[0],
+                amount: expense.amount,
+                category: expense.category,
+                safe: expense.safe || '',
+                bank: expense.bank || '',
+                payee: expense.payee,
+                notes: expense.notes || '',
+                reference_number: expense.reference_number || ''
+              });
+              setPaymentSource(expense.bank ? 'bank' : 'safe');
+              setActiveTab('expenses');
+              setIsModalOpen(true);
+            })
+            .catch(err => {
+              console.error('Error fetching expense details:', err);
+              alert('حدث خطأ أثناء جلب بيانات المصروف');
+            })
+            .finally(() => setLoading(false));
+          return;
+        } else if (item.transaction_type === 'income') {
+          setLoading(true);
+          api.get(`/finances/api/incomes/${item.source_id}/`)
+            .then(res => {
+              const income = res.data;
+              setEditingItem(income);
+              setIncomeFormData({
+                date: income.date ? income.date.split('T')[0] : new Date().toISOString().split('T')[0],
+                amount: income.amount,
+                category: income.category,
+                safe: income.safe || '',
+                bank: income.bank || '',
+                payer: income.payer,
+                notes: income.notes || '',
+                reference_number: income.reference_number || ''
+              });
+              setPaymentSource(income.bank ? 'bank' : 'safe');
+              setActiveTab('income');
+              setIsModalOpen(true);
+            })
+            .catch(err => {
+              console.error('Error fetching income details:', err);
+              alert('حدث خطأ أثناء جلب بيانات الإيراد');
+            })
+            .finally(() => setLoading(false));
+          return;
+        } else if (item.transaction_type === 'deposit' || item.transaction_type === 'withdrawal') {
+          const endpoint = item.transaction_type === 'deposit' ? '/finances/api/safe-deposits/' : '/finances/api/safe-withdrawals/';
+          setLoading(true);
+          api.get(`${endpoint}${item.source_id}/`)
+            .then(res => {
+              const transaction = res.data;
+              setEditingItem(transaction);
+              setSafeTransactionFormData({
+                date: transaction.date ? transaction.date.split('T')[0] : new Date().toISOString().split('T')[0],
+                amount: transaction.amount,
+                type: item.transaction_type,
+                safe: transaction.safe || '',
+                bank: transaction.bank || '',
+                source_destination: item.transaction_type === 'deposit' ? transaction.source : transaction.destination,
+                notes: transaction.notes || '',
+                reference_number: transaction.reference_number || ''
+              });
+              setPaymentSource(transaction.bank ? 'bank' : 'safe');
+              setIsModalOpen(true);
+            })
+            .catch(err => {
+              console.error('Error fetching transaction details:', err);
+              alert('حدث خطأ أثناء جلب بيانات العملية');
+            })
+            .finally(() => setLoading(false));
+          return;
+        } else {
+          setEditingItem(item);
+          setSafeTransactionFormData({
+            date: item.date ? item.date.split('T')[0] : new Date().toISOString().split('T')[0],
+            amount: item.amount,
+            type: item.transaction_type === 'deposit' ? 'deposit' : 'withdrawal',
+            safe: item.safe || '',
+            bank: item.bank || '',
+            source_destination: item.description || '',
+            notes: item.notes || '',
+            reference_number: item.reference_number || ''
+          });
+          setPaymentSource(item.bank ? 'bank' : 'safe');
+        }
       } else {
         setEditingItem(null);
         setSafeTransactionFormData({
@@ -280,7 +451,7 @@ const Finances = () => {
       if (item) {
         setEditingItem(item);
         setMoneyTransferFormData({
-          date: item.date.split('T')[0],
+          date: item.date ? item.date.split('T')[0] : new Date().toISOString().split('T')[0],
           amount: item.amount,
           from_safe: item.from_safe || '',
           from_bank: item.from_bank || '',
@@ -310,7 +481,7 @@ const Finances = () => {
       if (item) {
         setEditingItem(item);
         setPaymentFormData({
-          date: item.date.split('T')[0],
+          date: item.date ? item.date.split('T')[0] : new Date().toISOString().split('T')[0],
           amount: item.amount,
           payment_type: item.payment_type,
           contact: item.contact,
@@ -353,16 +524,27 @@ const Finances = () => {
       if (paymentSource === 'safe') data.bank = null;
       else data.safe = null;
 
+      // تنظيف القيم الفارغة لتجنب مشاكل التحقق في الخادم
+      if (!data.invoice) data.invoice = null;
+      if (!data.expense_category) data.expense_category = null;
+      if (!data.income_category) data.income_category = null;
+      if (!data.safe) data.safe = null;
+      if (!data.bank) data.bank = null;
+      if (!data.contact) data.contact = null;
+
       if (editingItem) {
-        await api.put(`/invoices/api/payments/${editingItem.id}/`, data);
+        const id = editingItem.source_id || editingItem.id;
+        await api.put(`/invoices/api/payments/${id}/`, data);
       } else {
         await api.post('/invoices/api/payments/', data);
       }
       setIsModalOpen(false);
+      setIsDirty(false);
       fetchData();
     } catch (err) {
       console.error('Error saving payment:', err);
-      alert('حدث خطأ أثناء حفظ السند');
+      const errorMessage = err.response?.data?.detail || err.response?.data?.error || err.message || 'حدث خطأ غير معروف';
+      alert(`حدث خطأ أثناء حفظ السند: ${errorMessage}`);
     }
   };
 
@@ -375,6 +557,7 @@ const Finances = () => {
         await api.post('/core/api/banks/', bankFormData);
       }
       setIsModalOpen(false);
+      setIsDirty(false);
       fetchData();
     } catch (err) {
       console.error('Error saving bank:', err);
@@ -391,6 +574,7 @@ const Finances = () => {
         await api.post('/core/api/safes/', safeFormData);
       }
       setIsModalOpen(false);
+      setIsDirty(false);
       fetchData();
     } catch (err) {
       console.error('Error saving safe:', err);
@@ -404,6 +588,8 @@ const Finances = () => {
       const data = { ...expenseFormData };
       if (paymentSource === 'safe') data.bank = null;
       else data.safe = null;
+
+      if (!data.contact) data.contact = null;
 
       if (editingItem) {
         await api.put(`/finances/api/expenses/${editingItem.id}/`, data);
@@ -424,6 +610,8 @@ const Finances = () => {
       const data = { ...incomeFormData };
       if (paymentSource === 'safe') data.bank = null;
       else data.safe = null;
+
+      if (!data.contact) data.contact = null;
 
       if (editingItem) {
         await api.put(`/finances/api/incomes/${editingItem.id}/`, data);
@@ -455,37 +643,12 @@ const Finances = () => {
       const endpoint = data.type === 'deposit' ? '/finances/api/safe-deposits/' : '/finances/api/safe-withdrawals/';
       
       if (editingItem) {
-        // Find the original deposit/withdrawal ID if it was linked to this transaction
-        // In this simplified version, we might need a more robust way to link them
-        // For now, let's assume we are creating new ones or we have the ID
+        // إذا كان العنصر الذي يتم تعديله هو السند الأصلي (إيداع/سحب)
+        // أو إذا كان حركة مالية ولها معرف مصدر
         const id = editingItem.id;
-        // The backend should handle updating the corresponding deposit/withdrawal
-        // Actually, SafeTransaction is read-only in many ways, we should update the source model
-        // But if editingItem is a SafeTransaction, we need to know if it's a deposit or withdrawal
+        const sourceId = editingItem.source_id || id;
         
-        // Check if editingItem has created_by_deposit or created_by_withdrawal
-        let sourceEndpoint = '';
-        let sourceId = null;
-        
-        if (editingItem.transaction_type === 'deposit') {
-            sourceEndpoint = '/finances/api/safe-deposits/';
-            // We need to fetch the deposit ID or have it in the transaction serializer
-            // Let's assume the backend allows updating via the transaction ID or we fetch it
-        } else if (editingItem.transaction_type === 'withdrawal') {
-            sourceEndpoint = '/finances/api/safe-withdrawals/';
-        }
-        
-        // For now, if editing, we'll try to find the source ID or just warn
-        // Re-fetching might be needed. Let's simplify: if it's a manual transaction, 
-        // we might not allow editing from here yet, or we'll need to update the serializers.
-        // Let's just implement POST for now and see if we can handle PUT.
-        
-        if (editingItem.source_id) {
-            await api.put(`${sourceEndpoint}${editingItem.source_id}/`, data);
-        } else {
-            alert('لا يمكن تعديل هذه العملية من هنا حالياً');
-            return;
-        }
+        await api.put(`${endpoint}${sourceId}/`, data);
       } else {
         await api.post(endpoint, data);
       }
@@ -542,7 +705,7 @@ const Finances = () => {
     try {
       setLoading(true);
       
-      // Fetch common data
+      // Fetch common data once
       const [banksRes, safesRes, accountsRes, branchesRes, expCatRes, incCatRes, contactsRes] = await Promise.all([
         api.get('/api/banks/'),
         api.get('/api/safes/'),
@@ -553,13 +716,13 @@ const Finances = () => {
         api.get('/core/api/contacts/')
       ]);
 
-      setBanks(banksRes.data);
-      setSafes(safesRes.data);
-      setAccounts(accountsRes.data);
-      setBranches(branchesRes.data);
-      setExpenseCategories(expCatRes.data);
-      setIncomeCategories(incCatRes.data);
-      setContacts(contactsRes.data);
+      setBanks(banksRes.data || []);
+      setSafes(safesRes.data || []);
+      setAccounts(accountsRes.data || []);
+      setBranches(branchesRes.data || []);
+      setExpenseCategories(expCatRes.data || []);
+      setIncomeCategories(incCatRes.data || []);
+      setContacts(contactsRes.data || []);
 
       let endpoint = '';
       if (activeTab === 'transactions') endpoint = '/finances/api/safe-transactions/';
@@ -569,21 +732,23 @@ const Finances = () => {
       else if (activeTab === 'expense_categories') endpoint = '/finances/api/expense-categories/';
       else if (activeTab === 'income_categories') endpoint = '/finances/api/income-categories/';
       else if (activeTab === 'payments' || activeTab === 'receipts') endpoint = '/invoices/api/payments/';
-      else if (activeTab === 'banks' || activeTab === 'safes') {
-        setTransactions([]);
-        setLoading(false);
-        return;
-      }
       
-      const response = await api.get(endpoint);
-      if (activeTab === 'money_transfers') setMoneyTransfers(response.data);
-      else if (activeTab === 'payments' || activeTab === 'receipts') {
-        const filteredPayments = activeTab === 'payments' 
-          ? response.data.filter(p => p.payment_type === 'payment')
-          : response.data.filter(p => p.payment_type === 'receipt');
-        setPayments(filteredPayments);
+      if (endpoint) {
+        const response = await api.get(endpoint);
+        const data = response.data || [];
+        
+        if (activeTab === 'money_transfers') setMoneyTransfers(data);
+        else if (activeTab === 'payments' || activeTab === 'receipts') {
+          const filteredPayments = activeTab === 'payments' 
+            ? data.filter(p => p.payment_type === 'payment')
+            : data.filter(p => p.payment_type === 'receipt');
+          setPayments(filteredPayments);
+        }
+        else setTransactions(data);
+      } else {
+        // For tabs that don't need a secondary fetch (like banks/safes which are already fetched)
+        setTransactions([]);
       }
-      else setTransactions(response.data);
 
     } catch (err) {
       console.error('Error fetching financial data:', err);
@@ -592,8 +757,47 @@ const Finances = () => {
     }
   };
 
+  // Initial data fetch only once on mount
   useEffect(() => {
     fetchData();
+  }, []);
+
+  // When tab changes, only fetch the specific data for that tab if needed
+  useEffect(() => {
+    const fetchTabData = async () => {
+      if (loading) return; // Prevent concurrent fetches during initial load
+      
+      try {
+        let endpoint = '';
+        if (activeTab === 'transactions') endpoint = '/finances/api/safe-transactions/';
+        else if (activeTab === 'expenses') endpoint = '/finances/api/expenses/';
+        else if (activeTab === 'income') endpoint = '/finances/api/incomes/';
+        else if (activeTab === 'money_transfers') endpoint = '/finances/api/money-transfers/';
+        else if (activeTab === 'expense_categories') endpoint = '/finances/api/expense-categories/';
+        else if (activeTab === 'income_categories') endpoint = '/finances/api/income-categories/';
+        else if (activeTab === 'payments' || activeTab === 'receipts') endpoint = '/invoices/api/payments/';
+        
+        if (endpoint) {
+          const response = await api.get(endpoint);
+          const data = response.data || [];
+          
+          if (activeTab === 'money_transfers') setMoneyTransfers(data);
+          else if (activeTab === 'payments' || activeTab === 'receipts') {
+            const filteredPayments = activeTab === 'payments' 
+              ? data.filter(p => p.payment_type === 'payment')
+              : data.filter(p => p.payment_type === 'receipt');
+            setPayments(filteredPayments);
+          }
+          else setTransactions(data);
+        }
+      } catch (err) {
+        console.error('Error fetching tab data:', err);
+      }
+    };
+
+    if (activeTab !== 'banks' && activeTab !== 'safes') {
+        fetchTabData();
+    }
   }, [activeTab]);
 
   const handleDelete = async (id) => {
@@ -692,61 +896,61 @@ const Finances = () => {
       {/* Tabs */}
       <div className="flex bg-white p-1 rounded-2xl border border-gray-100 shadow-sm w-fit overflow-x-auto max-w-full">
         <button 
-          onClick={() => setActiveTab('transactions')}
+          onClick={() => handleSafeTabChange('transactions')}
           className={`px-6 py-2 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${activeTab === 'transactions' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-500 hover:bg-gray-50'}`}
         >
           الحركات المالية
         </button>
         <button 
-          onClick={() => setActiveTab('money_transfers')}
+          onClick={() => handleSafeTabChange('money_transfers')}
           className={`px-6 py-2 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${activeTab === 'money_transfers' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-500 hover:bg-gray-50'}`}
         >
           تحويلات الأموال
         </button>
         <button 
-          onClick={() => setActiveTab('safes')}
+          onClick={() => handleSafeTabChange('safes')}
           className={`px-6 py-2 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${activeTab === 'safes' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-500 hover:bg-gray-50'}`}
         >
           الخزن
         </button>
         <button 
-          onClick={() => setActiveTab('banks')}
+          onClick={() => handleSafeTabChange('banks')}
           className={`px-6 py-2 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${activeTab === 'banks' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-500 hover:bg-gray-50'}`}
         >
           البنوك
         </button>
         <button 
-          onClick={() => setActiveTab('expenses')}
+          onClick={() => handleSafeTabChange('expenses')}
           className={`px-6 py-2 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${activeTab === 'expenses' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-500 hover:bg-gray-50'}`}
         >
           المصروفات
         </button>
         <button 
-          onClick={() => setActiveTab('income')}
+          onClick={() => handleSafeTabChange('income')}
           className={`px-6 py-2 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${activeTab === 'income' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-500 hover:bg-gray-50'}`}
         >
           الإيرادات
         </button>
         <button 
-          onClick={() => setActiveTab('expense_categories')}
+          onClick={() => handleSafeTabChange('expense_categories')}
           className={`px-6 py-2 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${activeTab === 'expense_categories' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-500 hover:bg-gray-50'}`}
         >
           أقسام المصروفات
         </button>
         <button 
-          onClick={() => setActiveTab('income_categories')}
+          onClick={() => handleSafeTabChange('income_categories')}
           className={`px-6 py-2 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${activeTab === 'income_categories' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-500 hover:bg-gray-50'}`}
         >
           أقسام الإيرادات
         </button>
         <button 
-          onClick={() => setActiveTab('receipts')}
+          onClick={() => handleSafeTabChange('receipts')}
           className={`px-6 py-2 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${activeTab === 'receipts' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-500 hover:bg-gray-50'}`}
         >
           تحصيلات العملاء
         </button>
         <button 
-          onClick={() => setActiveTab('payments')}
+          onClick={() => handleSafeTabChange('payments')}
           className={`px-6 py-2 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${activeTab === 'payments' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-500 hover:bg-gray-50'}`}
         >
           مدفوعات الموردين
@@ -1037,7 +1241,7 @@ const Finances = () => {
                 <Building2 size={24} />
                 {editingItem ? 'تعديل بيانات البنك' : 'إضافة بنك جديد'}
               </h2>
-              <button onClick={() => setIsModalOpen(false)} className="hover:bg-white/20 p-2 rounded-xl transition-colors">
+              <button onClick={handleSafeCloseModal} className="hover:bg-white/20 p-2 rounded-xl transition-colors">
                 <X size={20} />
               </button>
             </div>
@@ -1051,7 +1255,10 @@ const Finances = () => {
                     required
                     className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                     value={bankFormData.name}
-                    onChange={(e) => setBankFormData({...bankFormData, name: e.target.value})}
+                    onChange={(e) => {
+                      setBankFormData({...bankFormData, name: e.target.value});
+                      markDirty();
+                    }}
                   />
                 </div>
                 <div className="space-y-1">
@@ -1060,7 +1267,10 @@ const Finances = () => {
                     required
                     className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                     value={bankFormData.branch}
-                    onChange={(e) => setBankFormData({...bankFormData, branch: e.target.value})}
+                    onChange={(e) => {
+                      setBankFormData({...bankFormData, branch: e.target.value});
+                      markDirty();
+                    }}
                   >
                     <option value="">اختر الفرع</option>
                     {branches.map(b => (
@@ -1075,7 +1285,10 @@ const Finances = () => {
                     className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all text-left"
                     dir="ltr"
                     value={bankFormData.account_number}
-                    onChange={(e) => setBankFormData({...bankFormData, account_number: e.target.value})}
+                    onChange={(e) => {
+                      setBankFormData({...bankFormData, account_number: e.target.value});
+                      markDirty();
+                    }}
                   />
                 </div>
                 <div className="space-y-1">
@@ -1085,7 +1298,10 @@ const Finances = () => {
                     className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all text-left"
                     dir="ltr"
                     value={bankFormData.iban}
-                    onChange={(e) => setBankFormData({...bankFormData, iban: e.target.value})}
+                    onChange={(e) => {
+                      setBankFormData({...bankFormData, iban: e.target.value});
+                      markDirty();
+                    }}
                   />
                 </div>
                 <div className="space-y-1">
@@ -1097,7 +1313,10 @@ const Finances = () => {
                     disabled={!!editingItem}
                     className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                     value={bankFormData.initial_balance}
-                    onChange={(e) => setBankFormData({...bankFormData, initial_balance: e.target.value})}
+                    onChange={(e) => {
+                      setBankFormData({...bankFormData, initial_balance: e.target.value});
+                      markDirty();
+                    }}
                   />
                 </div>
                 <div className="space-y-1">
@@ -1105,7 +1324,10 @@ const Finances = () => {
                   <select 
                     className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                     value={bankFormData.account}
-                    onChange={(e) => setBankFormData({...bankFormData, account: e.target.value})}
+                    onChange={(e) => {
+                      setBankFormData({...bankFormData, account: e.target.value});
+                      markDirty();
+                    }}
                   >
                     <option value="">اختر الحساب المحاسبي</option>
                     {accounts.map(a => (
@@ -1120,7 +1342,10 @@ const Finances = () => {
                   className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                   rows="2"
                   value={bankFormData.address}
-                  onChange={(e) => setBankFormData({...bankFormData, address: e.target.value})}
+                  onChange={(e) => {
+                    setBankFormData({...bankFormData, address: e.target.value});
+                    markDirty();
+                  }}
                 ></textarea>
               </div>
 
@@ -1134,7 +1359,7 @@ const Finances = () => {
                 </button>
                 <button 
                   type="button"
-                  onClick={() => setIsModalOpen(false)}
+                  onClick={handleSafeCloseModal}
                   className="flex-1 bg-gray-100 text-gray-600 py-3 rounded-xl font-bold hover:bg-gray-200 transition-all"
                 >
                   إلغاء
@@ -1154,7 +1379,7 @@ const Finances = () => {
                 <Wallet size={24} />
                 {editingItem ? 'تعديل بيانات الخزنة' : 'إضافة خزنة جديدة'}
               </h3>
-              <button onClick={() => setIsModalOpen(false)} className="hover:bg-white/20 p-2 rounded-xl transition-colors">
+              <button onClick={handleSafeCloseModal} className="hover:bg-white/20 p-2 rounded-xl transition-colors">
                 <X size={20} />
               </button>
             </div>
@@ -1167,7 +1392,10 @@ const Finances = () => {
                   required
                   className="w-full px-4 py-3 bg-gray-50 border-none rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                   value={safeFormData.name}
-                  onChange={(e) => setSafeFormData({...safeFormData, name: e.target.value})}
+                  onChange={(e) => {
+                    setSafeFormData({...safeFormData, name: e.target.value});
+                    markDirty();
+                  }}
                 />
               </div>
 
@@ -1177,7 +1405,10 @@ const Finances = () => {
                   <select 
                     className="w-full px-4 py-3 bg-gray-50 border-none rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                     value={safeFormData.branch}
-                    onChange={(e) => setSafeFormData({...safeFormData, branch: e.target.value})}
+                    onChange={(e) => {
+                      setSafeFormData({...safeFormData, branch: e.target.value});
+                      markDirty();
+                    }}
                   >
                     {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
                   </select>
@@ -1189,7 +1420,10 @@ const Finances = () => {
                     step="0.01"
                     className="w-full px-4 py-3 bg-gray-50 border-none rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none transition-all font-mono"
                     value={safeFormData.initial_balance}
-                    onChange={(e) => setSafeFormData({...safeFormData, initial_balance: e.target.value})}
+                    onChange={(e) => {
+                      setSafeFormData({...safeFormData, initial_balance: e.target.value});
+                      markDirty();
+                    }}
                   />
                 </div>
               </div>
@@ -1199,7 +1433,10 @@ const Finances = () => {
                 <select 
                   className="w-full px-4 py-3 bg-gray-50 border-none rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                   value={safeFormData.account}
-                  onChange={(e) => setSafeFormData({...safeFormData, account: e.target.value})}
+                  onChange={(e) => {
+                    setSafeFormData({...safeFormData, account: e.target.value});
+                    markDirty();
+                  }}
                 >
                   <option value="">اختر حساباً...</option>
                   {accounts.map(a => <option key={a.id} value={a.id}>{a.code} - {a.name}</option>)}
@@ -1215,7 +1452,7 @@ const Finances = () => {
                 </button>
                 <button 
                   type="button"
-                  onClick={() => setIsModalOpen(false)}
+                  onClick={handleSafeCloseModal}
                   className="px-8 py-4 bg-gray-50 text-gray-500 rounded-2xl font-bold hover:bg-gray-100 transition-all"
                 >
                   إلغاء
@@ -1235,7 +1472,7 @@ const Finances = () => {
                 <ArrowDownCircle size={24} />
                 {editingItem ? 'تعديل مصروف' : 'تسجيل مصروف جديد'}
               </h2>
-              <button onClick={() => setIsModalOpen(false)} className="hover:bg-white/20 p-2 rounded-xl transition-colors">
+              <button onClick={handleSafeCloseModal} className="hover:bg-white/20 p-2 rounded-xl transition-colors">
                 <X size={20} />
               </button>
             </div>
@@ -1249,7 +1486,10 @@ const Finances = () => {
                     required
                     className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-red-500 outline-none transition-all"
                     value={expenseFormData.date}
-                    onChange={(e) => setExpenseFormData({...expenseFormData, date: e.target.value})}
+                    onChange={(e) => {
+                      setExpenseFormData({...expenseFormData, date: e.target.value});
+                      markDirty();
+                    }}
                   />
                 </div>
                 <div className="space-y-1">
@@ -1260,7 +1500,10 @@ const Finances = () => {
                     required
                     className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-red-500 outline-none transition-all"
                     value={expenseFormData.amount}
-                    onChange={(e) => setExpenseFormData({...expenseFormData, amount: e.target.value})}
+                    onChange={(e) => {
+                      setExpenseFormData({...expenseFormData, amount: e.target.value});
+                      markDirty();
+                    }}
                   />
                 </div>
                 <div className="space-y-1">
@@ -1269,10 +1512,34 @@ const Finances = () => {
                     required
                     className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-red-500 outline-none transition-all"
                     value={expenseFormData.category}
-                    onChange={(e) => setExpenseFormData({...expenseFormData, category: e.target.value})}
+                    onChange={(e) => {
+                      setExpenseFormData({...expenseFormData, category: e.target.value});
+                      markDirty();
+                    }}
                   >
                     <option value="">اختر القسم</option>
                     {expenseCategories.map(c => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-gray-400 mr-2">جهة الاتصال (اختياري)</label>
+                  <select 
+                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-red-500 outline-none transition-all"
+                    value={expenseFormData.contact}
+                    onChange={(e) => {
+                      const selectedContact = contacts.find(c => c.id === parseInt(e.target.value));
+                      setExpenseFormData({
+                        ...expenseFormData, 
+                        contact: e.target.value,
+                        payee: selectedContact ? selectedContact.name : expenseFormData.payee
+                      });
+                      markDirty();
+                    }}
+                  >
+                    <option value="">اختر جهة الاتصال</option>
+                    {contacts.filter(c => c.contact_type === 'supplier' || c.contact_type === 'both').map(c => (
                       <option key={c.id} value={c.id}>{c.name}</option>
                     ))}
                   </select>
@@ -1284,7 +1551,10 @@ const Finances = () => {
                     required
                     className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-red-500 outline-none transition-all"
                     value={expenseFormData.payee}
-                    onChange={(e) => setExpenseFormData({...expenseFormData, payee: e.target.value})}
+                    onChange={(e) => {
+                      setExpenseFormData({...expenseFormData, payee: e.target.value});
+                      markDirty();
+                    }}
                   />
                 </div>
 
@@ -1295,7 +1565,10 @@ const Finances = () => {
                         type="radio" 
                         name="paymentSource" 
                         checked={paymentSource === 'safe'} 
-                        onChange={() => setPaymentSource('safe')}
+                        onChange={() => {
+                          setPaymentSource('safe');
+                          markDirty();
+                        }}
                         className="w-4 h-4 text-red-600"
                       />
                       <span className="text-sm font-bold text-gray-700">دفع من الخزينة</span>
@@ -1305,7 +1578,10 @@ const Finances = () => {
                         type="radio" 
                         name="paymentSource" 
                         checked={paymentSource === 'bank'} 
-                        onChange={() => setPaymentSource('bank')}
+                        onChange={() => {
+                          setPaymentSource('bank');
+                          markDirty();
+                        }}
                         className="w-4 h-4 text-red-600"
                       />
                       <span className="text-sm font-bold text-gray-700">دفع من البنك</span>
@@ -1319,7 +1595,10 @@ const Finances = () => {
                         required
                         className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-red-500 outline-none transition-all"
                         value={expenseFormData.safe}
-                        onChange={(e) => setExpenseFormData({...expenseFormData, safe: e.target.value})}
+                        onChange={(e) => {
+                          setExpenseFormData({...expenseFormData, safe: e.target.value});
+                          markDirty();
+                        }}
                       >
                         <option value="">اختر الخزينة</option>
                         {safes.map(s => (
@@ -1334,7 +1613,10 @@ const Finances = () => {
                         required
                         className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-red-500 outline-none transition-all"
                         value={expenseFormData.bank}
-                        onChange={(e) => setExpenseFormData({...expenseFormData, bank: e.target.value})}
+                        onChange={(e) => {
+                          setExpenseFormData({...expenseFormData, bank: e.target.value});
+                          markDirty();
+                        }}
                       >
                         <option value="">اختر البنك</option>
                         {banks.map(b => (
@@ -1351,7 +1633,10 @@ const Finances = () => {
                     type="text"
                     className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-red-500 outline-none transition-all"
                     value={expenseFormData.reference_number}
-                    onChange={(e) => setExpenseFormData({...expenseFormData, reference_number: e.target.value})}
+                    onChange={(e) => {
+                      setExpenseFormData({...expenseFormData, reference_number: e.target.value});
+                      markDirty();
+                    }}
                   />
                 </div>
               </div>
@@ -1361,7 +1646,10 @@ const Finances = () => {
                   className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-red-500 outline-none transition-all"
                   rows="2"
                   value={expenseFormData.notes}
-                  onChange={(e) => setExpenseFormData({...expenseFormData, notes: e.target.value})}
+                  onChange={(e) => {
+                    setExpenseFormData({...expenseFormData, notes: e.target.value});
+                    markDirty();
+                  }}
                 ></textarea>
               </div>
 
@@ -1375,7 +1663,7 @@ const Finances = () => {
                 </button>
                 <button 
                   type="button"
-                  onClick={() => setIsModalOpen(false)}
+                  onClick={handleSafeCloseModal}
                   className="flex-1 bg-gray-100 text-gray-600 py-3 rounded-xl font-bold hover:bg-gray-200 transition-all"
                 >
                   إلغاء
@@ -1395,7 +1683,7 @@ const Finances = () => {
                 <ArrowUpCircle size={24} />
                 {editingItem ? 'تعديل إيراد' : 'تسجيل إيراد جديد'}
               </h2>
-              <button onClick={() => setIsModalOpen(false)} className="hover:bg-white/20 p-2 rounded-xl transition-colors">
+              <button onClick={handleSafeCloseModal} className="hover:bg-white/20 p-2 rounded-xl transition-colors">
                 <X size={20} />
               </button>
             </div>
@@ -1409,7 +1697,10 @@ const Finances = () => {
                     required
                     className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-green-500 outline-none transition-all"
                     value={incomeFormData.date}
-                    onChange={(e) => setIncomeFormData({...incomeFormData, date: e.target.value})}
+                    onChange={(e) => {
+                      setIncomeFormData({...incomeFormData, date: e.target.value});
+                      markDirty();
+                    }}
                   />
                 </div>
                 <div className="space-y-1">
@@ -1420,7 +1711,10 @@ const Finances = () => {
                     required
                     className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-green-500 outline-none transition-all"
                     value={incomeFormData.amount}
-                    onChange={(e) => setIncomeFormData({...incomeFormData, amount: e.target.value})}
+                    onChange={(e) => {
+                      setIncomeFormData({...incomeFormData, amount: e.target.value});
+                      markDirty();
+                    }}
                   />
                 </div>
                 <div className="space-y-1">
@@ -1429,10 +1723,34 @@ const Finances = () => {
                     required
                     className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-green-500 outline-none transition-all"
                     value={incomeFormData.category}
-                    onChange={(e) => setIncomeFormData({...incomeFormData, category: e.target.value})}
+                    onChange={(e) => {
+                      setIncomeFormData({...incomeFormData, category: e.target.value});
+                      markDirty();
+                    }}
                   >
                     <option value="">اختر القسم</option>
                     {incomeCategories.map(c => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-gray-400 mr-2">جهة الاتصال (اختياري)</label>
+                  <select 
+                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-green-500 outline-none transition-all"
+                    value={incomeFormData.contact}
+                    onChange={(e) => {
+                      const selectedContact = contacts.find(c => c.id === parseInt(e.target.value));
+                      setIncomeFormData({
+                        ...incomeFormData, 
+                        contact: e.target.value,
+                        payer: selectedContact ? selectedContact.name : incomeFormData.payer
+                      });
+                      markDirty();
+                    }}
+                  >
+                    <option value="">اختر جهة الاتصال</option>
+                    {contacts.filter(c => c.contact_type === 'customer' || c.contact_type === 'both').map(c => (
                       <option key={c.id} value={c.id}>{c.name}</option>
                     ))}
                   </select>
@@ -1444,7 +1762,10 @@ const Finances = () => {
                     required
                     className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-green-500 outline-none transition-all"
                     value={incomeFormData.payer}
-                    onChange={(e) => setIncomeFormData({...incomeFormData, payer: e.target.value})}
+                    onChange={(e) => {
+                      setIncomeFormData({...incomeFormData, payer: e.target.value});
+                      markDirty();
+                    }}
                   />
                 </div>
 
@@ -1455,7 +1776,10 @@ const Finances = () => {
                         type="radio" 
                         name="incomeSource" 
                         checked={paymentSource === 'safe'} 
-                        onChange={() => setPaymentSource('safe')}
+                        onChange={() => {
+                          setPaymentSource('safe');
+                          markDirty();
+                        }}
                         className="w-4 h-4 text-green-600"
                       />
                       <span className="text-sm font-bold text-gray-700">تحصيل في الخزينة</span>
@@ -1465,7 +1789,10 @@ const Finances = () => {
                         type="radio" 
                         name="incomeSource" 
                         checked={paymentSource === 'bank'} 
-                        onChange={() => setPaymentSource('bank')}
+                        onChange={() => {
+                          setPaymentSource('bank');
+                          markDirty();
+                        }}
                         className="w-4 h-4 text-green-600"
                       />
                       <span className="text-sm font-bold text-gray-700">تحصيل في البنك</span>
@@ -1479,7 +1806,10 @@ const Finances = () => {
                         required
                         className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 outline-none transition-all"
                         value={incomeFormData.safe}
-                        onChange={(e) => setIncomeFormData({...incomeFormData, safe: e.target.value})}
+                        onChange={(e) => {
+                          setIncomeFormData({...incomeFormData, safe: e.target.value});
+                          markDirty();
+                        }}
                       >
                         <option value="">اختر الخزينة</option>
                         {safes.map(s => (
@@ -1494,7 +1824,10 @@ const Finances = () => {
                         required
                         className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 outline-none transition-all"
                         value={incomeFormData.bank}
-                        onChange={(e) => setIncomeFormData({...incomeFormData, bank: e.target.value})}
+                        onChange={(e) => {
+                          setIncomeFormData({...incomeFormData, bank: e.target.value});
+                          markDirty();
+                        }}
                       >
                         <option value="">اختر البنك</option>
                         {banks.map(b => (
@@ -1511,7 +1844,10 @@ const Finances = () => {
                     type="text"
                     className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-green-500 outline-none transition-all"
                     value={incomeFormData.reference_number}
-                    onChange={(e) => setIncomeFormData({...incomeFormData, reference_number: e.target.value})}
+                    onChange={(e) => {
+                      setIncomeFormData({...incomeFormData, reference_number: e.target.value});
+                      markDirty();
+                    }}
                   />
                 </div>
               </div>
@@ -1521,7 +1857,10 @@ const Finances = () => {
                   className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-green-500 outline-none transition-all"
                   rows="2"
                   value={incomeFormData.notes}
-                  onChange={(e) => setIncomeFormData({...incomeFormData, notes: e.target.value})}
+                  onChange={(e) => {
+                    setIncomeFormData({...incomeFormData, notes: e.target.value});
+                    markDirty();
+                  }}
                 ></textarea>
               </div>
 
@@ -1535,7 +1874,7 @@ const Finances = () => {
                 </button>
                 <button 
                   type="button"
-                  onClick={() => setIsModalOpen(false)}
+                  onClick={handleSafeCloseModal}
                   className="flex-1 bg-gray-100 text-gray-600 py-3 rounded-xl font-bold hover:bg-gray-200 transition-all"
                 >
                   إلغاء
@@ -1547,7 +1886,7 @@ const Finances = () => {
       )}
 
       {/* Safe Transaction Modal (Deposit/Withdrawal) */}
-      {isModalOpen && activeTab === 'safe' && (
+      {isModalOpen && activeTab === 'transactions' && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
             <div className="bg-blue-600 p-6 text-white flex justify-between items-center">
@@ -1555,7 +1894,7 @@ const Finances = () => {
                 <ArrowLeftRight size={24} />
                 {editingItem ? 'تعديل عملية' : 'تسجيل عملية جديدة'}
               </h2>
-              <button onClick={() => setIsModalOpen(false)} className="hover:bg-white/20 p-2 rounded-xl transition-colors">
+              <button onClick={handleSafeCloseModal} className="hover:bg-white/20 p-2 rounded-xl transition-colors">
                 <X size={20} />
               </button>
             </div>
@@ -1565,14 +1904,20 @@ const Finances = () => {
                 <div className="md:col-span-2 flex bg-gray-100 p-1 rounded-xl w-fit mb-2">
                     <button 
                         type="button"
-                        onClick={() => setSafeTransactionFormData({...safeTransactionFormData, type: 'deposit'})}
+                        onClick={() => {
+                          setSafeTransactionFormData({...safeTransactionFormData, type: 'deposit'});
+                          markDirty();
+                        }}
                         className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${safeTransactionFormData.type === 'deposit' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500'}`}
                     >
                         إيداع
                     </button>
                     <button 
                         type="button"
-                        onClick={() => setSafeTransactionFormData({...safeTransactionFormData, type: 'withdrawal'})}
+                        onClick={() => {
+                          setSafeTransactionFormData({...safeTransactionFormData, type: 'withdrawal'});
+                          markDirty();
+                        }}
                         className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${safeTransactionFormData.type === 'withdrawal' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500'}`}
                     >
                         سحب
@@ -1586,7 +1931,10 @@ const Finances = () => {
                     required
                     className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                     value={safeTransactionFormData.date}
-                    onChange={(e) => setSafeTransactionFormData({...safeTransactionFormData, date: e.target.value})}
+                    onChange={(e) => {
+                      setSafeTransactionFormData({...safeTransactionFormData, date: e.target.value});
+                      markDirty();
+                    }}
                   />
                 </div>
                 <div className="space-y-1">
@@ -1597,7 +1945,10 @@ const Finances = () => {
                     required
                     className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                     value={safeTransactionFormData.amount}
-                    onChange={(e) => setSafeTransactionFormData({...safeTransactionFormData, amount: e.target.value})}
+                    onChange={(e) => {
+                      setSafeTransactionFormData({...safeTransactionFormData, amount: e.target.value});
+                      markDirty();
+                    }}
                   />
                 </div>
                 
@@ -1610,7 +1961,10 @@ const Finances = () => {
                     required
                     className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                     value={safeTransactionFormData.source_destination}
-                    onChange={(e) => setSafeTransactionFormData({...safeTransactionFormData, source_destination: e.target.value})}
+                    onChange={(e) => {
+                      setSafeTransactionFormData({...safeTransactionFormData, source_destination: e.target.value});
+                      markDirty();
+                    }}
                   />
                 </div>
 
@@ -1621,7 +1975,10 @@ const Finances = () => {
                         type="radio" 
                         name="transSource" 
                         checked={paymentSource === 'safe'} 
-                        onChange={() => setPaymentSource('safe')}
+                        onChange={() => {
+                          setPaymentSource('safe');
+                          markDirty();
+                        }}
                         className="w-4 h-4 text-blue-600"
                       />
                       <span className="text-sm font-bold text-gray-700">الخزينة</span>
@@ -1631,7 +1988,10 @@ const Finances = () => {
                         type="radio" 
                         name="transSource" 
                         checked={paymentSource === 'bank'} 
-                        onChange={() => setPaymentSource('bank')}
+                        onChange={() => {
+                          setPaymentSource('bank');
+                          markDirty();
+                        }}
                         className="w-4 h-4 text-blue-600"
                       />
                       <span className="text-sm font-bold text-gray-700">البنك</span>
@@ -1645,7 +2005,10 @@ const Finances = () => {
                         required
                         className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                         value={safeTransactionFormData.safe}
-                        onChange={(e) => setSafeTransactionFormData({...safeTransactionFormData, safe: e.target.value})}
+                        onChange={(e) => {
+                          setSafeTransactionFormData({...safeTransactionFormData, safe: e.target.value});
+                          markDirty();
+                        }}
                       >
                         <option value="">اختر الخزينة</option>
                         {safes.map(s => (
@@ -1660,7 +2023,10 @@ const Finances = () => {
                         required
                         className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                         value={safeTransactionFormData.bank}
-                        onChange={(e) => setSafeTransactionFormData({...safeTransactionFormData, bank: e.target.value})}
+                        onChange={(e) => {
+                          setSafeTransactionFormData({...safeTransactionFormData, bank: e.target.value});
+                          markDirty();
+                        }}
                       >
                         <option value="">اختر البنك</option>
                         {banks.map(b => (
@@ -1677,7 +2043,10 @@ const Finances = () => {
                     type="text"
                     className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                     value={safeTransactionFormData.reference_number}
-                    onChange={(e) => setSafeTransactionFormData({...safeTransactionFormData, reference_number: e.target.value})}
+                    onChange={(e) => {
+                      setSafeTransactionFormData({...safeTransactionFormData, reference_number: e.target.value});
+                      markDirty();
+                    }}
                   />
                 </div>
               </div>
@@ -1687,7 +2056,10 @@ const Finances = () => {
                   className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                   rows="2"
                   value={safeTransactionFormData.notes}
-                  onChange={(e) => setSafeTransactionFormData({...safeTransactionFormData, notes: e.target.value})}
+                  onChange={(e) => {
+                    setSafeTransactionFormData({...safeTransactionFormData, notes: e.target.value});
+                    markDirty();
+                  }}
                 ></textarea>
               </div>
 
@@ -1701,7 +2073,7 @@ const Finances = () => {
                 </button>
                 <button 
                   type="button"
-                  onClick={() => setIsModalOpen(false)}
+                  onClick={handleSafeCloseModal}
                   className="flex-1 bg-gray-100 text-gray-600 py-3 rounded-xl font-bold hover:bg-gray-200 transition-all"
                 >
                   إلغاء
@@ -1720,7 +2092,7 @@ const Finances = () => {
                 <ArrowLeftRight size={24} />
                 {editingItem ? 'تعديل تحويل' : 'تحويل أموال جديد'}
               </h2>
-              <button onClick={() => setIsModalOpen(false)} className="hover:bg-white/20 p-2 rounded-xl transition-colors">
+              <button onClick={handleSafeCloseModal} className="hover:bg-white/20 p-2 rounded-xl transition-colors">
                 <X size={20} />
               </button>
             </div>
@@ -1734,7 +2106,10 @@ const Finances = () => {
                     required
                     className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                     value={moneyTransferFormData.date}
-                    onChange={(e) => setMoneyTransferFormData({...moneyTransferFormData, date: e.target.value})}
+                    onChange={(e) => {
+                      setMoneyTransferFormData({...moneyTransferFormData, date: e.target.value});
+                      markDirty();
+                    }}
                   />
                 </div>
                 <div className="space-y-1">
@@ -1745,7 +2120,10 @@ const Finances = () => {
                     required
                     className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                     value={moneyTransferFormData.amount}
-                    onChange={(e) => setMoneyTransferFormData({...moneyTransferFormData, amount: e.target.value})}
+                    onChange={(e) => {
+                      setMoneyTransferFormData({...moneyTransferFormData, amount: e.target.value});
+                      markDirty();
+                    }}
                   />
                 </div>
 
@@ -1756,12 +2134,18 @@ const Finances = () => {
                     <div className="flex bg-white p-1 rounded-lg border border-red-100">
                       <button 
                         type="button"
-                        onClick={() => setTransferSourceType('safe')}
+                        onClick={() => {
+                          setTransferSourceType('safe');
+                          markDirty();
+                        }}
                         className={`px-3 py-1 rounded-md text-[10px] font-bold transition-all ${transferSourceType === 'safe' ? 'bg-red-600 text-white' : 'text-gray-400'}`}
                       >خزينة</button>
                       <button 
                         type="button"
-                        onClick={() => setTransferSourceType('bank')}
+                        onClick={() => {
+                          setTransferSourceType('bank');
+                          markDirty();
+                        }}
                         className={`px-3 py-1 rounded-md text-[10px] font-bold transition-all ${transferSourceType === 'bank' ? 'bg-red-600 text-white' : 'text-gray-400'}`}
                       >بنك</button>
                     </div>
@@ -1771,7 +2155,10 @@ const Finances = () => {
                       required
                       className="w-full px-4 py-2.5 bg-white border border-red-100 rounded-xl focus:ring-2 focus:ring-red-500 outline-none transition-all"
                       value={moneyTransferFormData.from_safe}
-                      onChange={(e) => setMoneyTransferFormData({...moneyTransferFormData, from_safe: e.target.value})}
+                      onChange={(e) => {
+                        setMoneyTransferFormData({...moneyTransferFormData, from_safe: e.target.value});
+                        markDirty();
+                      }}
                     >
                       <option value="">اختر الخزينة</option>
                       {safes.map(s => <option key={s.id} value={s.id}>{s.name} ({parseFloat(s.current_balance).toLocaleString()} ج.م)</option>)}
@@ -1781,7 +2168,10 @@ const Finances = () => {
                       required
                       className="w-full px-4 py-2.5 bg-white border border-red-100 rounded-xl focus:ring-2 focus:ring-red-500 outline-none transition-all"
                       value={moneyTransferFormData.from_bank}
-                      onChange={(e) => setMoneyTransferFormData({...moneyTransferFormData, from_bank: e.target.value})}
+                      onChange={(e) => {
+                        setMoneyTransferFormData({...moneyTransferFormData, from_bank: e.target.value});
+                        markDirty();
+                      }}
                     >
                       <option value="">اختر البنك</option>
                       {banks.map(b => <option key={b.id} value={b.id}>{b.name} ({parseFloat(b.current_balance).toLocaleString()} ج.م)</option>)}
@@ -1796,12 +2186,18 @@ const Finances = () => {
                     <div className="flex bg-white p-1 rounded-lg border border-green-100">
                       <button 
                         type="button"
-                        onClick={() => setTransferDestType('safe')}
+                        onClick={() => {
+                          setTransferDestType('safe');
+                          markDirty();
+                        }}
                         className={`px-3 py-1 rounded-md text-[10px] font-bold transition-all ${transferDestType === 'safe' ? 'bg-green-600 text-white' : 'text-gray-400'}`}
                       >خزينة</button>
                       <button 
                         type="button"
-                        onClick={() => setTransferDestType('bank')}
+                        onClick={() => {
+                          setTransferDestType('bank');
+                          markDirty();
+                        }}
                         className={`px-3 py-1 rounded-md text-[10px] font-bold transition-all ${transferDestType === 'bank' ? 'bg-green-600 text-white' : 'text-gray-400'}`}
                       >بنك</button>
                     </div>
@@ -1811,7 +2207,10 @@ const Finances = () => {
                       required
                       className="w-full px-4 py-2.5 bg-white border border-green-100 rounded-xl focus:ring-2 focus:ring-green-500 outline-none transition-all"
                       value={moneyTransferFormData.to_safe}
-                      onChange={(e) => setMoneyTransferFormData({...moneyTransferFormData, to_safe: e.target.value})}
+                      onChange={(e) => {
+                        setMoneyTransferFormData({...moneyTransferFormData, to_safe: e.target.value});
+                        markDirty();
+                      }}
                     >
                       <option value="">اختر الخزينة</option>
                       {safes.map(s => <option key={s.id} value={s.id}>{s.name} ({parseFloat(s.current_balance).toLocaleString()} ج.م)</option>)}
@@ -1821,7 +2220,10 @@ const Finances = () => {
                       required
                       className="w-full px-4 py-2.5 bg-white border border-green-100 rounded-xl focus:ring-2 focus:ring-green-500 outline-none transition-all"
                       value={moneyTransferFormData.to_bank}
-                      onChange={(e) => setMoneyTransferFormData({...moneyTransferFormData, to_bank: e.target.value})}
+                      onChange={(e) => {
+                        setMoneyTransferFormData({...moneyTransferFormData, to_bank: e.target.value});
+                        markDirty();
+                      }}
                     >
                       <option value="">اختر البنك</option>
                       {banks.map(b => <option key={b.id} value={b.id}>{b.name} ({parseFloat(b.current_balance).toLocaleString()} ج.م)</option>)}
@@ -1835,7 +2237,10 @@ const Finances = () => {
                     type="text"
                     className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                     value={moneyTransferFormData.reference_number}
-                    onChange={(e) => setMoneyTransferFormData({...moneyTransferFormData, reference_number: e.target.value})}
+                    onChange={(e) => {
+                      setMoneyTransferFormData({...moneyTransferFormData, reference_number: e.target.value});
+                      markDirty();
+                    }}
                   />
                 </div>
                 <div className="space-y-1">
@@ -1844,7 +2249,10 @@ const Finances = () => {
                     className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                     rows="1"
                     value={moneyTransferFormData.notes}
-                    onChange={(e) => setMoneyTransferFormData({...moneyTransferFormData, notes: e.target.value})}
+                    onChange={(e) => {
+                      setMoneyTransferFormData({...moneyTransferFormData, notes: e.target.value});
+                      markDirty();
+                    }}
                   ></textarea>
                 </div>
               </div>
@@ -1859,7 +2267,7 @@ const Finances = () => {
                 </button>
                 <button 
                   type="button"
-                  onClick={() => setIsModalOpen(false)}
+                  onClick={handleSafeCloseModal}
                   className="flex-1 bg-gray-100 text-gray-600 py-3 rounded-xl font-bold hover:bg-gray-200 transition-all"
                 >
                   إلغاء
@@ -1878,7 +2286,7 @@ const Finances = () => {
                 <Plus size={24} />
                 {editingItem ? (categoryType === 'expense' ? 'تعديل قسم مصروفات' : 'تعديل قسم إيرادات') : (categoryType === 'expense' ? 'إضافة قسم مصروفات جديد' : 'إضافة قسم إيرادات جديد')}
               </h2>
-              <button onClick={() => setIsCategoryModalOpen(false)} className="hover:bg-white/20 p-2 rounded-xl transition-colors">
+              <button onClick={handleSafeCloseModal} className="hover:bg-white/20 p-2 rounded-xl transition-colors">
                 <X size={20} />
               </button>
             </div>
@@ -1891,7 +2299,10 @@ const Finances = () => {
                   required
                   className={`w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl outline-none transition-all focus:ring-2 ${categoryType === 'expense' ? 'focus:ring-red-500' : 'focus:ring-green-500'}`}
                   value={categoryFormData.name}
-                  onChange={(e) => setCategoryFormData({...categoryFormData, name: e.target.value})}
+                  onChange={(e) => {
+                    setCategoryFormData({...categoryFormData, name: e.target.value});
+                    markDirty();
+                  }}
                 />
               </div>
               
@@ -1901,7 +2312,10 @@ const Finances = () => {
                   className={`w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl outline-none transition-all focus:ring-2 ${categoryType === 'expense' ? 'focus:ring-red-500' : 'focus:ring-green-500'}`}
                   rows="3"
                   value={categoryFormData.description}
-                  onChange={(e) => setCategoryFormData({...categoryFormData, description: e.target.value})}
+                  onChange={(e) => {
+                    setCategoryFormData({...categoryFormData, description: e.target.value});
+                    markDirty();
+                  }}
                 ></textarea>
               </div>
 
@@ -1910,7 +2324,10 @@ const Finances = () => {
                 <select 
                   className={`w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl outline-none transition-all focus:ring-2 ${categoryType === 'expense' ? 'focus:ring-red-500' : 'focus:ring-green-500'}`}
                   value={categoryFormData.account}
-                  onChange={(e) => setCategoryFormData({...categoryFormData, account: e.target.value})}
+                  onChange={(e) => {
+                    setCategoryFormData({...categoryFormData, account: e.target.value});
+                    markDirty();
+                  }}
                 >
                   <option value="">اختر الحساب</option>
                   {accounts.map(acc => (
@@ -1929,7 +2346,7 @@ const Finances = () => {
                 </button>
                 <button 
                   type="button"
-                  onClick={() => setIsCategoryModalOpen(false)}
+                  onClick={handleSafeCloseModal}
                   className="flex-1 bg-gray-100 text-gray-600 py-3 rounded-xl font-bold hover:bg-gray-200 transition-all"
                 >
                   إلغاء
@@ -1949,7 +2366,7 @@ const Finances = () => {
                 <ArrowLeftRight size={24} />
                 {editingItem ? 'تعديل سند' : (activeTab === 'payments' ? 'سند صرف مورد جديد' : 'سند تحصيل عميل جديد')}
               </h2>
-              <button onClick={() => setIsModalOpen(false)} className="hover:bg-white/20 p-2 rounded-xl transition-colors">
+              <button onClick={handleSafeCloseModal} className="hover:bg-white/20 p-2 rounded-xl transition-colors">
                 <X size={20} />
               </button>
             </div>
@@ -1963,7 +2380,10 @@ const Finances = () => {
                     required
                     className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl outline-none transition-all focus:ring-2 focus:ring-blue-500"
                     value={paymentFormData.date}
-                    onChange={(e) => setPaymentFormData({...paymentFormData, date: e.target.value})}
+                    onChange={(e) => {
+                      setPaymentFormData({...paymentFormData, date: e.target.value});
+                      markDirty();
+                    }}
                   />
                 </div>
                 <div className="space-y-1">
@@ -1974,7 +2394,10 @@ const Finances = () => {
                     required
                     className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl outline-none transition-all focus:ring-2 focus:ring-blue-500"
                     value={paymentFormData.amount}
-                    onChange={(e) => setPaymentFormData({...paymentFormData, amount: e.target.value})}
+                    onChange={(e) => {
+                      setPaymentFormData({...paymentFormData, amount: e.target.value});
+                      markDirty();
+                    }}
                   />
                 </div>
 
@@ -1984,13 +2407,20 @@ const Finances = () => {
                     required
                     className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl outline-none transition-all focus:ring-2 focus:ring-blue-500"
                     value={paymentFormData.contact}
-                    onChange={(e) => setPaymentFormData({...paymentFormData, contact: e.target.value})}
+                    onChange={(e) => {
+                      setPaymentFormData({...paymentFormData, contact: e.target.value});
+                      markDirty();
+                    }}
                   >
                     <option value="">اختر {activeTab === 'payments' ? 'المورد' : 'العميل'}</option>
                     {contacts
-                      .filter(c => activeTab === 'payments' ? c.contact_type === 'supplier' : c.contact_type === 'customer')
+                      .filter(c => activeTab === 'payments' 
+                        ? (c.contact_type === 'supplier' || c.contact_type === 'both')
+                        : (c.contact_type === 'customer' || c.contact_type === 'both'))
                       .map(c => (
-                        <option key={c.id} value={c.id}>{c.name} (رصيد: {parseFloat(c.current_balance).toLocaleString()})</option>
+                        <option key={c.id} value={c.id}>
+                          {c.name} (رصيد: {parseFloat(activeTab === 'payments' ? (c.current_supplier_balance || 0) : (c.current_balance || 0)).toLocaleString()})
+                        </option>
                       ))
                     }
                   </select>
@@ -2001,10 +2431,14 @@ const Finances = () => {
                   <select 
                     className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl outline-none transition-all focus:ring-2 focus:ring-blue-500"
                     value={activeTab === 'payments' ? paymentFormData.expense_category : paymentFormData.income_category}
-                    onChange={(e) => activeTab === 'payments' 
-                      ? setPaymentFormData({...paymentFormData, expense_category: e.target.value})
-                      : setPaymentFormData({...paymentFormData, income_category: e.target.value})
-                    }
+                    onChange={(e) => {
+                      if (activeTab === 'payments') {
+                        setPaymentFormData({...paymentFormData, expense_category: e.target.value});
+                      } else {
+                        setPaymentFormData({...paymentFormData, income_category: e.target.value});
+                      }
+                      markDirty();
+                    }}
                   >
                     <option value="">بدون قسم</option>
                     {(activeTab === 'payments' ? expenseCategories : incomeCategories).map(cat => (
@@ -2019,7 +2453,10 @@ const Finances = () => {
                       <input 
                         type="radio" 
                         checked={paymentSource === 'safe'} 
-                        onChange={() => setPaymentSource('safe')}
+                        onChange={() => {
+                          setPaymentSource('safe');
+                          markDirty();
+                        }}
                         className="w-4 h-4 text-blue-600"
                       />
                       <span className="text-sm font-bold text-gray-700">الخزينة</span>
@@ -2028,7 +2465,10 @@ const Finances = () => {
                       <input 
                         type="radio" 
                         checked={paymentSource === 'bank'} 
-                        onChange={() => setPaymentSource('bank')}
+                        onChange={() => {
+                          setPaymentSource('bank');
+                          markDirty();
+                        }}
                         className="w-4 h-4 text-blue-600"
                       />
                       <span className="text-sm font-bold text-gray-700">البنك</span>
@@ -2042,7 +2482,10 @@ const Finances = () => {
                         required
                         className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                         value={paymentFormData.safe}
-                        onChange={(e) => setPaymentFormData({...paymentFormData, safe: e.target.value})}
+                        onChange={(e) => {
+                          setPaymentFormData({...paymentFormData, safe: e.target.value});
+                          markDirty();
+                        }}
                       >
                         <option value="">اختر الخزينة</option>
                         {safes.map(s => (
@@ -2057,7 +2500,10 @@ const Finances = () => {
                         required
                         className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                         value={paymentFormData.bank}
-                        onChange={(e) => setPaymentFormData({...paymentFormData, bank: e.target.value})}
+                        onChange={(e) => {
+                          setPaymentFormData({...paymentFormData, bank: e.target.value});
+                          markDirty();
+                        }}
                       >
                         <option value="">اختر البنك</option>
                         {banks.map(b => (
@@ -2074,7 +2520,10 @@ const Finances = () => {
                     type="text"
                     className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl outline-none transition-all focus:ring-2 focus:ring-blue-500"
                     value={paymentFormData.reference_number}
-                    onChange={(e) => setPaymentFormData({...paymentFormData, reference_number: e.target.value})}
+                    onChange={(e) => {
+                      setPaymentFormData({...paymentFormData, reference_number: e.target.value});
+                      markDirty();
+                    }}
                   />
                 </div>
               </div>
@@ -2085,7 +2534,10 @@ const Finances = () => {
                   className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl outline-none transition-all focus:ring-2 focus:ring-blue-500"
                   rows="2"
                   value={paymentFormData.notes}
-                  onChange={(e) => setPaymentFormData({...paymentFormData, notes: e.target.value})}
+                  onChange={(e) => {
+                    setPaymentFormData({...paymentFormData, notes: e.target.value});
+                    markDirty();
+                  }}
                 ></textarea>
               </div>
 
@@ -2099,13 +2551,46 @@ const Finances = () => {
                 </button>
                 <button 
                   type="button"
-                  onClick={() => setIsModalOpen(false)}
+                  onClick={handleSafeCloseModal}
                   className="flex-1 bg-gray-100 text-gray-600 py-3 rounded-xl font-bold hover:bg-gray-200 transition-all"
                 >
                   إلغاء
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Exit Confirmation Modal */}
+      {showExitConfirm && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-8 space-y-6 animate-in zoom-in-95 duration-200">
+            <div className="flex flex-col items-center text-center space-y-4">
+              <div className="w-16 h-16 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center">
+                <AlertTriangle size={32} />
+              </div>
+              <div className="space-y-2">
+                <h3 className="text-xl font-bold text-gray-900">تنبيه: بيانات غير محفوظة</h3>
+                <p className="text-gray-500">
+                  لقد قمت بإجراء تغييرات ولم يتم حفظها بعد. هل أنت متأكد من رغبتك في المغادرة وفقدان هذه البيانات؟
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowExitConfirm(false)}
+                className="flex-1 px-4 py-3 bg-gray-100 text-gray-700 font-bold rounded-2xl hover:bg-gray-200 transition"
+              >
+                البقاء والحفظ
+              </button>
+              <button
+                onClick={confirmExit}
+                className="flex-1 px-4 py-3 bg-red-600 text-white font-bold rounded-2xl hover:bg-red-700 transition shadow-lg shadow-red-200"
+              >
+                مغادرة على أي حال
+              </button>
+            </div>
           </div>
         </div>
       )}

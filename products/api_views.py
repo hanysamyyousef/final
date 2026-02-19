@@ -1,11 +1,13 @@
 from rest_framework import viewsets
 from rest_framework.permissions import IsAuthenticated
-from .models import Category, Unit, Product, ProductUnit
+from .models import Category, Unit, Product, ProductUnit, ProductCustomField, ProductCustomFieldValue
 from .serializers import (
     CategorySerializer, 
     UnitSerializer, 
     ProductSerializer, 
-    ProductUnitSerializer
+    ProductUnitSerializer,
+    ProductCustomFieldSerializer,
+    ProductCustomFieldValueSerializer
 )
 
 class CategoryViewSet(viewsets.ModelViewSet):
@@ -26,4 +28,14 @@ class ProductViewSet(viewsets.ModelViewSet):
 class ProductUnitViewSet(viewsets.ModelViewSet):
     queryset = ProductUnit.objects.all()
     serializer_class = ProductUnitSerializer
+    permission_classes = [IsAuthenticated]
+
+class ProductCustomFieldViewSet(viewsets.ModelViewSet):
+    queryset = ProductCustomField.objects.all()
+    serializer_class = ProductCustomFieldSerializer
+    permission_classes = [IsAuthenticated]
+
+class ProductCustomFieldValueViewSet(viewsets.ModelViewSet):
+    queryset = ProductCustomFieldValue.objects.all()
+    serializer_class = ProductCustomFieldValueSerializer
     permission_classes = [IsAuthenticated]

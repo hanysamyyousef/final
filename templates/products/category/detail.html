@@ -8,18 +8,18 @@
         <h2 class="mb-0">{{ category.name }}</h2>
         {% if category.parent %}
             <p class="text-muted">
-                <a href="{% url 'category_detail' category.parent.pk %}">{{ category.parent.name }}</a>
+                <a href="{% url 'products:category_detail' category.parent.pk %}">{{ category.parent.name }}</a>
             </p>
         {% endif %}
     </div>
     <div class="col-md-4 text-end">
-        <a href="{% url 'category_edit' category.pk %}" class="btn btn-warning">
+        <a href="{% url 'products:category_edit' category.pk %}" class="btn btn-warning">
             <i class="fas fa-edit"></i> تعديل
         </a>
-        <a href="{% url 'category_delete' category.pk %}" class="btn btn-danger">
+        <a href="{% url 'products:category_delete' category.pk %}" class="btn btn-danger">
             <i class="fas fa-trash"></i> حذف
         </a>
-        <a href="{% url 'category_list' %}" class="btn btn-secondary">
+        <a href="{% url 'products:category_list' %}" class="btn btn-secondary">
             <i class="fas fa-arrow-right"></i> العودة للقائمة
         </a>
     </div>
@@ -48,7 +48,7 @@
                             <th>القسم الأب</th>
                             <td>
                                 {% if category.parent %}
-                                    <a href="{% url 'category_detail' category.parent.pk %}">{{ category.parent.name }}</a>
+                                    <a href="{% url 'products:category_detail' category.parent.pk %}">{{ category.parent.name }}</a>
                                 {% else %}
                                     -
                                 {% endif %}
@@ -104,13 +104,13 @@
                                         <td>{{ subcategory.products.count }}</td>
                                         <td>
                                             <div class="btn-group">
-                                                <a href="{% url 'category_detail' subcategory.pk %}" class="btn btn-sm btn-info">
+                                                <a href="{% url 'products:category_detail' subcategory.pk %}" class="btn btn-sm btn-info">
                                                     <i class="fas fa-eye"></i>
                                                 </a>
-                                                <a href="{% url 'category_edit' subcategory.pk %}" class="btn btn-sm btn-warning">
+                                                <a href="{% url 'products:category_edit' subcategory.pk %}" class="btn btn-sm btn-warning">
                                                     <i class="fas fa-edit"></i>
                                                 </a>
-                                                <a href="{% url 'category_delete' subcategory.pk %}" class="btn btn-sm btn-danger">
+                                                <a href="{% url 'products:category_delete' subcategory.pk %}" class="btn btn-sm btn-danger">
                                                     <i class="fas fa-trash"></i>
                                                 </a>
                                             </div>
@@ -150,13 +150,13 @@
                                         <td>{{ product.current_balance }}</td>
                                         <td>
                                             <div class="btn-group">
-                                                <a href="{% url 'product_detail' product.pk %}" class="btn btn-sm btn-info">
+                                                <a href="{% url 'products:product_detail' product.pk %}" class="btn btn-sm btn-info">
                                                     <i class="fas fa-eye"></i>
                                                 </a>
-                                                <a href="{% url 'product_edit' product.pk %}" class="btn btn-sm btn-warning">
+                                                <a href="{% url 'products:product_edit' product.pk %}" class="btn btn-sm btn-warning">
                                                     <i class="fas fa-edit"></i>
                                                 </a>
-                                                <a href="{% url 'product_delete' product.pk %}" class="btn btn-sm btn-danger">
+                                                <a href="{% url 'products:product_delete' product.pk %}" class="btn btn-sm btn-danger">
                                                     <i class="fas fa-trash"></i>
                                                 </a>
                                             </div>
@@ -168,7 +168,7 @@
                     </div>
                 {% else %}
                     <div class="alert alert-info">
-                        لا توجد منتجات مسجلة في هذا القسم. <a href="{% url 'product_add' %}">أضف منتج جديد</a>
+                        لا توجد منتجات مسجلة في هذا القسم. <a href="{% url 'products:product_add' %}">أضف منتج جديد</a>
                     </div>
                 {% endif %}
             </div>

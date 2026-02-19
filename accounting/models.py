@@ -196,10 +196,22 @@ class JournalEntry(models.Model):
                     safe = account.safe
                     safe.current_balance = account.balance
                     safe.save(update_fields=['current_balance'])
+                elif hasattr(account, 'bank'):
+                    bank = account.bank
+                    bank.current_balance = account.balance
+                    bank.save(update_fields=['current_balance'])
                 elif hasattr(account, 'contact'):
                     contact = account.contact
                     contact.current_balance = account.balance
                     contact.save(update_fields=['current_balance'])
+                elif hasattr(account, 'contact_as_customer'):
+                    contact = account.contact_as_customer
+                    contact.current_balance = account.balance
+                    contact.save(update_fields=['current_balance'])
+                elif hasattr(account, 'contact_as_supplier'):
+                    contact = account.contact_as_supplier
+                    contact.current_supplier_balance = account.balance
+                    contact.save(update_fields=['current_supplier_balance'])
             
             self.is_posted = True
             self.save()
@@ -245,10 +257,22 @@ class JournalEntry(models.Model):
                     safe = account.safe
                     safe.current_balance = account.balance
                     safe.save(update_fields=['current_balance'])
+                elif hasattr(account, 'bank'):
+                    bank = account.bank
+                    bank.current_balance = account.balance
+                    bank.save(update_fields=['current_balance'])
                 elif hasattr(account, 'contact'):
                     contact = account.contact
                     contact.current_balance = account.balance
                     contact.save(update_fields=['current_balance'])
+                elif hasattr(account, 'contact_as_customer'):
+                    contact = account.contact_as_customer
+                    contact.current_balance = account.balance
+                    contact.save(update_fields=['current_balance'])
+                elif hasattr(account, 'contact_as_supplier'):
+                    contact = account.contact_as_supplier
+                    contact.current_supplier_balance = account.balance
+                    contact.save(update_fields=['current_supplier_balance'])
             
             self.is_posted = False
             self.save()

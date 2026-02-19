@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import api from './api';
 import { useReactToPrint } from 'react-to-print';
 import * as XLSX from 'xlsx';
@@ -25,12 +25,14 @@ import {
   Package, 
   PlusCircle, 
   MinusCircle,
-  Download,
-  FileSpreadsheet
+ Download,
+  FileSpreadsheet,
+  AlertTriangle
 } from 'lucide-react';
 
 const Invoices = () => {
   const { type } = useParams();
+  const navigate = useNavigate();
   
   // Mapping URL type to internal type
   const typeMap = {
@@ -45,6 +47,12 @@ const Invoices = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState(typeMap[type] || 'all');
+  const [showSuccess, setShowSuccess] = useState(false);
+  const [isDirty, setIsDirty] = useState(false);
+  const [showExitConfirm, setShowExitConfirm] = useState(false);
+  const [pendingPath, setPendingPath] = useState(null);
+  const [pendingView, setPendingView] = useState(null);
+  const [pendingTab, setPendingTab] = useState(null);
 
   useEffect(() => {
     fetchFormData();
@@ -55,6 +63,7 @@ const Invoices = () => {
     setActiveTab(mappedType);
     setView('list');
     setEditingInvoice(null);
+    setIsDirty(false);
     setSearchTerm('');
     
     // Explicitly fetch data when type changes to ensure UI updates
@@ -75,6 +84,54 @@ const Invoices = () => {
     };
     fetchData();
   }, [type]);
+
+  // Handle browser back/close
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      if (isDirty) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [isDirty]);
+
+  const handleSafeNavigate = (viewType, path = null) => {
+    if (isDirty) {
+      setPendingView(viewType);
+      setPendingPath(path);
+      setShowExitConfirm(true);
+    } else {
+      if (path) {
+        navigate(path);
+      } else {
+        setView(viewType);
+      }
+    }
+  };
+
+  const confirmExit = () => {
+    setIsDirty(false);
+    setShowExitConfirm(false);
+    if (pendingPath) {
+      navigate(pendingPath);
+    } else if (pendingTab) {
+      setActiveTab(pendingTab);
+      setView(pendingView || 'list');
+    } else if (pendingView) {
+      setView(pendingView);
+    }
+    setPendingPath(null);
+    setPendingView(null);
+    setPendingTab(null);
+  };
+
+  const handleFormChange = (updates) => {
+    setFormData(prev => ({ ...prev, ...updates }));
+    setIsDirty(true);
+  };
+
   const [view, setView] = useState('list'); // 'list' or 'form'
   const [editingInvoice, setEditingInvoice] = useState(null);
   const [previousBalance, setPreviousBalance] = useState(0);
@@ -124,6 +181,8 @@ const Invoices = () => {
   const [products, setProducts] = useState([]);
   const [representatives, setRepresentatives] = useState([]);
   const [drivers, setDrivers] = useState([]);
+  const [accounts, setAccounts] = useState([]);
+  const [costCenters, setCostCenters] = useState([]);
   
   const [formData, setFormData] = useState({
     number: '',
@@ -167,15 +226,17 @@ const Invoices = () => {
 
   const fetchFormData = async () => {
     try {
-      const [c, s, sf, p, r, d, sett, comp] = await Promise.all([
+      const [c, s, sf, p, r, d, sett, comp, acc, cc] = await Promise.all([
         api.get('/core/api/contacts/'),
         api.get('/core/api/stores/'),
         api.get('/core/api/safes/'),
         api.get('/products/api/products/'),
         api.get('/core/api/representatives/'),
         api.get('/core/api/drivers/'),
-        api.get('/core/api/system-settings/'),
-        api.get('/core/api/companies/')
+        api.get('/core/api/system-settings/current/'),
+        api.get('/core/api/companies/'),
+        api.get('/accounting/api/accounts/?is_selectable=true'),
+        api.get('/accounting/api/cost-centers/')
       ]);
       setContacts(c.data);
       setStores(s.data);
@@ -183,11 +244,10 @@ const Invoices = () => {
       setProducts(p.data);
       setRepresentatives(r.data);
       setDrivers(d.data);
+      setAccounts(acc.data);
+      setCostCenters(cc.data);
       
-      let finalSettings = {};
-      if (sett.data && sett.data.length > 0) {
-        finalSettings = { ...sett.data[0] };
-      }
+      let finalSettings = sett.data || {};
       
       // دمج بيانات الشركة في الإعدادات لتظهر في الطباعة
       if (comp.data && comp.data.length > 0) {
@@ -206,6 +266,7 @@ const Invoices = () => {
   };
 
   const handleOpenForm = async (invoice = null) => {
+    setIsDirty(false); // Reset dirty state when opening form
     if (invoice) {
       setEditingInvoice(invoice);
       const loadedFormData = {
@@ -228,7 +289,9 @@ const Invoices = () => {
       if (invoice.contact) {
         try {
           const contactRes = await api.get(`/core/api/contacts/${invoice.contact}/`);
-          setPreviousBalance(parseFloat(contactRes.data.current_balance) - parseFloat(invoice.remaining_amount));
+          const isSale = invoice.invoice_type === 'sale' || invoice.invoice_type === 'sale_return';
+          const balance = isSale ? contactRes.data.current_balance : contactRes.data.current_supplier_balance;
+          setPreviousBalance(parseFloat(balance) - parseFloat(invoice.remaining_amount));
         } catch (err) {
           console.error('Error fetching contact balance:', err);
         }
@@ -249,14 +312,19 @@ const Invoices = () => {
         console.error('Error fetching next number:', err);
       }
 
+      // تحديد القيم الافتراضية من الإعدادات
+      const defaultContact = defaultType === 'sale' ? settings?.default_customer : (defaultType === 'purchase' ? settings?.default_supplier : '');
+      const defaultStore = settings?.default_store || stores[0]?.id || '';
+      const defaultSafe = settings?.default_safe || safes[0]?.id || '';
+
       setFormData({
         number: nextNumber,
         date: new Date().toISOString().slice(0, 16),
         invoice_type: defaultType,
         payment_type: 'cash',
-        contact: '',
-        store: stores[0]?.id || '',
-        safe: safes[0]?.id || '',
+        contact: defaultContact || '',
+        store: defaultStore,
+        safe: defaultSafe,
         representative: '',
         driver: '',
         notes: '',
@@ -266,23 +334,28 @@ const Invoices = () => {
         discount_amount: 0,
         tax_type: 'value',
         tax_value: 0,
-        tax_amount: 0,
+        tax_amount: settings?.vat_percentage || 0,
         net_amount: 0,
         paid_amount: 0,
         remaining_amount: 0,
         items: []
       });
-      setPreviousBalance(0);
+
+      if (defaultContact) {
+        handleContactChange(defaultContact);
+      }
     }
     setView('form');
   };
 
   const handleContactChange = async (contactId) => {
-    setFormData({ ...formData, contact: contactId });
+    handleFormChange({ contact: contactId });
     if (contactId) {
       try {
         const response = await api.get(`/core/api/contacts/${contactId}/`);
-        setPreviousBalance(parseFloat(response.data.current_balance));
+        const isSale = formData.invoice_type === 'sale' || formData.invoice_type === 'sale_return';
+        const balance = isSale ? response.data.current_balance : response.data.current_supplier_balance;
+        setPreviousBalance(parseFloat(balance || 0));
       } catch (err) {
         console.error('Error fetching contact balance:', err);
       }
@@ -292,8 +365,7 @@ const Invoices = () => {
   };
 
   const handleAddItem = () => {
-    setFormData({
-      ...formData,
+    handleFormChange({
       items: [
         ...formData.items,
         {
@@ -304,9 +376,11 @@ const Invoices = () => {
           total_price: 0,
           discount_percentage: 0,
           discount_amount: 0,
-          tax_percentage: 0,
+          tax_percentage: settings?.vat_percentage || 0,
           tax_amount: 0,
           net_price: 0,
+          account: '',
+          cost_center: '',
           notes: ''
         }
       ]
@@ -370,12 +444,75 @@ const Invoices = () => {
     item[field] = value;
 
     if (field === 'product') {
-      const product = products.find(p => p.id === parseInt(value));
+      const productId = parseInt(value);
+      
+      // معالجة تكرار الأصناف بناءً على الإعدادات
+      const existingItemIndex = formData.items.findIndex((it, i) => i !== index && it.product === productId);
+      
+      if (existingItemIndex !== -1 && settings?.duplicate_item_handling !== 'allow_duplicate') {
+        if (settings?.duplicate_item_handling === 'increase_quantity') {
+          // زيادة الكمية في البند الموجود وحذف البند الحالي (إذا كان جديداً)
+          const updatedItems = [...formData.items];
+          updatedItems[existingItemIndex].quantity = parseFloat(updatedItems[existingItemIndex].quantity) + 1;
+          
+          // إعادة حساب إجماليات البند المحدث
+          const updatedItem = updatedItems[existingItemIndex];
+          updatedItem.total_price = (parseFloat(updatedItem.quantity) || 0) * (parseFloat(updatedItem.unit_price) || 0);
+          updatedItem.discount_amount = (updatedItem.total_price * (parseFloat(updatedItem.discount_percentage) || 0)) / 100;
+          const priceAfterDiscount = updatedItem.total_price - updatedItem.discount_amount;
+          updatedItem.tax_amount = (priceAfterDiscount * (parseFloat(updatedItem.tax_percentage) || 0)) / 100;
+          updatedItem.net_price = priceAfterDiscount + updatedItem.tax_amount;
+
+          // إذا كان البند الحالي هو الذي يتم تعديله، فنحن بحاجة لحذفه
+          const finalItems = updatedItems.filter((_, i) => i !== index);
+          const totals = calculateInvoiceTotals(finalItems);
+          handleFormChange({ items: finalItems, ...totals });
+          return;
+        } else if (settings?.duplicate_item_handling === 'prevent_duplicate') {
+          alert('هذا الصنف موجود مسبقاً في الفاتورة وغير مسموح بالتكرار حسب إعدادات النظام');
+          return;
+        }
+      }
+
+      const product = products.find(p => p.id === productId);
       if (product) {
-        item.unit_price = product.sale_price || 0;
-        item.tax_percentage = product.tax_rate || 0;
+        // تحديد السعر بناءً على نوع الفاتورة
+        if (formData.invoice_type === 'sale' || formData.invoice_type === 'sale_return') {
+          item.unit_price = product.sale_price || 0;
+        } else {
+          item.unit_price = product.purchase_price || 0;
+        }
+        
+        item.tax_percentage = product.tax_rate !== undefined ? product.tax_rate : (settings?.vat_percentage || 0);
         if (product.units && product.units.length > 0) {
           item.product_unit = product.units[0].id;
+        }
+      }
+    }
+
+    // تنبيهات الأسعار
+    if (field === 'unit_price' && (formData.invoice_type === 'sale' || formData.invoice_type === 'sale_return')) {
+      const product = products.find(p => p.id === parseInt(item.product));
+      if (product && settings?.alert_below_purchase_price && value < product.purchase_price) {
+        if (!window.confirm(`تنبيه: سعر البيع (${value}) أقل من سعر التكلفة (${product.purchase_price}). هل تريد الاستمرار؟`)) {
+          return;
+        }
+      }
+    }
+
+    // تنبيهات نقص المخزون
+    if (field === 'quantity' && (formData.invoice_type === 'sale' || formData.invoice_type === 'damaged')) {
+      const product = products.find(p => p.id === parseInt(item.product));
+      if (product && product.product_type !== 'service') {
+        const requestedQty = parseFloat(value) || 0;
+        const availableQty = parseFloat(product.current_balance) || 0;
+        
+        if (requestedQty > availableQty) {
+          if (settings?.enable_notifications) {
+            if (!window.confirm(`تنبيه: الكمية المطلوبة (${requestedQty}) أكبر من الكمية المتاحة في المخزن (${availableQty}). هل تريد الاستمرار؟`)) {
+              return;
+            }
+          }
         }
       }
     }
@@ -389,11 +526,10 @@ const Invoices = () => {
     newItems[index] = item;
     
     const totals = calculateInvoiceTotals(newItems);
-    setFormData({ ...formData, items: newItems, ...totals });
+    handleFormChange({ items: newItems, ...totals });
   };
 
   const handleGlobalChange = (field, value) => {
-    const newFormData = { ...formData, [field]: value };
     let totals;
     if (field === 'discount_value') {
       totals = calculateInvoiceTotals(formData.items, value, formData.discount_type, formData.tax_value, formData.tax_type);
@@ -406,7 +542,7 @@ const Invoices = () => {
     } else {
       totals = calculateInvoiceTotals(formData.items);
     }
-    setFormData({ ...newFormData, ...totals });
+    handleFormChange({ [field]: value, ...totals });
   };
 
   useEffect(() => {
@@ -423,7 +559,7 @@ const Invoices = () => {
   const handleRemoveItem = (index) => {
     const newItems = formData.items.filter((_, i) => i !== index);
     const totals = calculateInvoiceTotals(newItems);
-    setFormData({ ...formData, items: newItems, ...totals });
+    handleFormChange({ items: newItems, ...totals });
   };
 
   const handleSave = async (e) => {
@@ -495,6 +631,9 @@ const Invoices = () => {
       } else {
         await api.post('/invoices/api/invoices/', sanitizedData);
       }
+      setIsDirty(false);
+      setShowSuccess(true);
+      setTimeout(() => setShowSuccess(false), 3000);
       setView('list');
       fetchInvoices();
     } catch (err) {
@@ -575,7 +714,7 @@ const Invoices = () => {
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-4">
             <button 
-              onClick={() => setView('list')}
+              onClick={() => handleSafeNavigate('list')}
               className="p-2 hover:bg-white rounded-xl transition-colors text-gray-400 hover:text-gray-600 shadow-sm"
             >
               <X size={24} />
@@ -607,7 +746,7 @@ const Invoices = () => {
             )}
             <button 
               type="button"
-              onClick={() => setView('list')}
+              onClick={() => handleSafeNavigate('list')}
               className="px-6 py-2.5 bg-white text-gray-600 rounded-xl font-bold hover:bg-gray-50 transition shadow-sm"
             >
               إلغاء
@@ -634,7 +773,7 @@ const Invoices = () => {
                     required
                     className="w-full px-4 py-2.5 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition"
                     value={formData.number}
-                    onChange={(e) => setFormData({...formData, number: e.target.value})}
+                    onChange={(e) => handleFormChange({ number: e.target.value })}
                   />
                 </div>
                 <div className="space-y-1.5">
@@ -644,7 +783,7 @@ const Invoices = () => {
                     required
                     className="w-full px-4 py-2.5 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition"
                     value={formData.date}
-                    onChange={(e) => setFormData({...formData, date: e.target.value})}
+                    onChange={(e) => handleFormChange({ date: e.target.value })}
                   />
                 </div>
                 <div className="space-y-1.5">
@@ -655,11 +794,11 @@ const Invoices = () => {
                     value={formData.invoice_type}
                     onChange={async (e) => {
                       const newType = e.target.value;
-                      setFormData({...formData, invoice_type: newType});
+                      handleFormChange({ invoice_type: newType });
                       // جلب الرقم التالي للنوع الجديد
                       try {
                         const response = await api.get('/invoices/api/invoices/next_number/', { params: { type: newType } });
-                        setFormData(prev => ({...prev, invoice_type: newType, number: response.data.next_number}));
+                        handleFormChange({ invoice_type: newType, number: response.data.next_number });
                       } catch (err) {
                         console.error('Error fetching next number:', err);
                       }
@@ -680,7 +819,7 @@ const Invoices = () => {
                     onChange={(e) => {
                       const newType = e.target.value;
                       const totals = calculateInvoiceTotals(formData.items, formData.discount_amount, formData.tax_amount);
-                      setFormData({...formData, payment_type: newType, ...totals});
+                      handleFormChange({ payment_type: newType, ...totals });
                     }}
                   >
                     <option value="cash">نقدي</option>
@@ -693,13 +832,20 @@ const Invoices = () => {
                 <div className="space-y-1.5">
                   <label className="text-sm font-bold text-gray-700 mr-1">العميل/المورد</label>
                   <select
-                    required
+                    required={formData.invoice_type !== 'damaged'}
                     className="w-full px-4 py-2.5 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition"
                     value={formData.contact}
                     onChange={(e) => handleContactChange(e.target.value)}
                   >
                     <option value="">اختر العميل/المورد</option>
-                    {contacts.map(c => (
+                    {contacts.filter(c => {
+                      if (formData.invoice_type === 'sale' || formData.invoice_type === 'sale_return') {
+                        return c.contact_type === 'customer' || c.contact_type === 'both';
+                      } else if (formData.invoice_type === 'purchase' || formData.invoice_type === 'purchase_return') {
+                        return c.contact_type === 'supplier' || c.contact_type === 'both';
+                      }
+                      return true; // For other types like 'damaged'
+                    }).map(c => (
                       <option key={c.id} value={c.id}>{c.name}</option>
                     ))}
                   </select>
@@ -710,7 +856,7 @@ const Invoices = () => {
                     required
                     className="w-full px-4 py-2.5 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition"
                     value={formData.store}
-                    onChange={(e) => setFormData({...formData, store: e.target.value})}
+                    onChange={(e) => handleFormChange({ store: e.target.value })}
                   >
                     <option value="">اختر المخزن</option>
                     {stores.map(s => (
@@ -724,7 +870,7 @@ const Invoices = () => {
                     required={formData.payment_type === 'cash'}
                     className="w-full px-4 py-2.5 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition"
                     value={formData.safe}
-                    onChange={(e) => setFormData({...formData, safe: e.target.value})}
+                    onChange={(e) => handleFormChange({ safe: e.target.value })}
                   >
                     <option value="">اختر الخزنة</option>
                     {safes.map(s => (
@@ -740,7 +886,7 @@ const Invoices = () => {
                   <select
                     className="w-full px-4 py-2.5 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition"
                     value={formData.representative}
-                    onChange={(e) => setFormData({...formData, representative: e.target.value})}
+                    onChange={(e) => handleFormChange({ representative: e.target.value })}
                   >
                     <option value="">اختر المندوب</option>
                     {representatives.map(r => (
@@ -753,7 +899,7 @@ const Invoices = () => {
                   <select
                     className="w-full px-4 py-2.5 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition"
                     value={formData.driver}
-                    onChange={(e) => setFormData({...formData, driver: e.target.value})}
+                    onChange={(e) => handleFormChange({ driver: e.target.value })}
                   >
                     <option value="">اختر السائق</option>
                     {drivers.map(d => (
@@ -792,6 +938,12 @@ const Invoices = () => {
                       <th className="p-2 text-right w-32">السعر</th>
                       <th className="p-2 text-right w-24">الخصم %</th>
                       <th className="p-2 text-right w-24">الضريبة %</th>
+                      {( (formData.invoice_type === 'sale' || formData.invoice_type === 'sale_return') ? settings?.per_item_account_in_invoices : settings?.per_item_account_in_purchases ) && (
+                        <th className="p-2 text-right">الحساب</th>
+                      )}
+                      {( (formData.invoice_type === 'sale' || formData.invoice_type === 'sale_return') ? settings?.distribute_cost_center_per_item_in_invoices : settings?.distribute_cost_center_per_item_in_purchases ) && (
+                        <th className="p-2 text-right">مركز التكلفة</th>
+                      )}
                       <th className="p-2 text-right w-32">الإجمالي</th>
                       <th className="p-2"></th>
                     </tr>
@@ -856,6 +1008,34 @@ const Invoices = () => {
                               onChange={(e) => handleItemChange(index, 'tax_percentage', parseFloat(e.target.value))}
                             />
                           </td>
+                          {( (formData.invoice_type === 'sale' || formData.invoice_type === 'sale_return') ? settings?.per_item_account_in_invoices : settings?.per_item_account_in_purchases ) && (
+                            <td className="p-2">
+                              <select
+                                className="w-full px-2 py-1.5 bg-gray-50 border-none rounded-lg text-xs"
+                                value={item.account}
+                                onChange={(e) => handleItemChange(index, 'account', e.target.value)}
+                              >
+                                <option value="">الحساب الافتراضي</option>
+                                {accounts.map(acc => (
+                                  <option key={acc.id} value={acc.id}>{acc.name}</option>
+                                ))}
+                              </select>
+                            </td>
+                          )}
+                          {( (formData.invoice_type === 'sale' || formData.invoice_type === 'sale_return') ? settings?.distribute_cost_center_per_item_in_invoices : settings?.distribute_cost_center_per_item_in_purchases ) && (
+                            <td className="p-2">
+                              <select
+                                className="w-full px-2 py-1.5 bg-gray-50 border-none rounded-lg text-xs"
+                                value={item.cost_center}
+                                onChange={(e) => handleItemChange(index, 'cost_center', e.target.value)}
+                              >
+                                <option value="">بدون مركز تكلفة</option>
+                                {costCenters.map(cc => (
+                                  <option key={cc.id} value={cc.id}>{cc.name}</option>
+                                ))}
+                              </select>
+                            </td>
+                          )}
                           <td className="p-2 font-bold text-gray-700">
                             {item.net_price.toLocaleString()}
                           </td>
@@ -870,7 +1050,14 @@ const Invoices = () => {
                           </td>
                         </tr>
                         <tr>
-                          <td colSpan="8" className="p-2">
+                          <td 
+                            colSpan={
+                              8 + 
+                              (( (formData.invoice_type === 'sale' || formData.invoice_type === 'sale_return') ? settings?.per_item_account_in_invoices : settings?.per_item_account_in_purchases ) ? 1 : 0) +
+                              (( (formData.invoice_type === 'sale' || formData.invoice_type === 'sale_return') ? settings?.distribute_cost_center_per_item_in_invoices : settings?.distribute_cost_center_per_item_in_purchases ) ? 1 : 0)
+                            } 
+                            className="p-2"
+                          >
                             <input 
                               type="text"
                               placeholder="ملاحظات البند..."
@@ -905,7 +1092,7 @@ const Invoices = () => {
                 className="w-full px-4 py-2.5 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition"
                 rows="3"
                 value={formData.notes}
-                onChange={(e) => setFormData({...formData, notes: e.target.value})}
+                onChange={(e) => handleFormChange({ notes: e.target.value })}
               />
             </div>
           </div>
@@ -1019,7 +1206,7 @@ const Invoices = () => {
                     disabled={formData.payment_type === 'cash'}
                     onChange={(e) => {
                       const paid = parseFloat(e.target.value) || 0;
-                      setFormData({...formData, paid_amount: paid, remaining_amount: formData.net_amount - paid});
+                      handleFormChange({ paid_amount: paid, remaining_amount: formData.net_amount - paid });
                     }}
                   />
                 </div>
@@ -1045,6 +1232,17 @@ const Invoices = () => {
       </div>
     );
   }
+
+  const handleSafeTabChange = (tabId) => {
+    if (isDirty) {
+      setPendingPath(null);
+      setPendingView('list');
+      setPendingTab(tabId);
+      setShowExitConfirm(true);
+    } else {
+      setActiveTab(tabId);
+    }
+  };
 
   return (
     <div className="p-6 space-y-6">
@@ -1082,7 +1280,7 @@ const Invoices = () => {
         ].map(tab => (
           <button
             key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
+            onClick={() => handleSafeTabChange(tab.id)}
             className={`px-4 py-2 text-sm font-bold transition-all relative ${
               activeTab === tab.id ? 'text-blue-600' : 'text-gray-400 hover:text-gray-600'
             }`}
@@ -1193,6 +1391,49 @@ const Invoices = () => {
           settings={settings} 
         />
       </div>
+
+      {/* Success Notification */}
+      {showSuccess && (
+        <div className="fixed top-24 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-top-4 duration-300">
+          <div className="bg-green-600 text-white px-6 py-3 rounded-2xl shadow-2xl flex items-center gap-3">
+            <CheckCircle2 size={20} />
+            <span className="font-bold">تم حفظ الفاتورة بنجاح</span>
+          </div>
+        </div>
+      )}
+
+      {/* Exit Confirmation Modal */}
+      {showExitConfirm && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-8 space-y-6 animate-in zoom-in-95 duration-200">
+            <div className="flex flex-col items-center text-center space-y-4">
+              <div className="w-16 h-16 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center">
+                <AlertTriangle size={32} />
+              </div>
+              <div className="space-y-2">
+                <h3 className="text-xl font-bold text-gray-900">تنبيه: بيانات غير محفوظة</h3>
+                <p className="text-gray-500">
+                  لقد قمت بإجراء تغييرات على الفاتورة ولم يتم حفظها بعد. هل أنت متأكد من رغبتك في المغادرة وفقدان هذه البيانات؟
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowExitConfirm(false)}
+                className="flex-1 px-4 py-3 bg-gray-100 text-gray-700 font-bold rounded-2xl hover:bg-gray-200 transition"
+              >
+                البقاء والحفظ
+              </button>
+              <button
+                onClick={confirmExit}
+                className="flex-1 px-4 py-3 bg-red-600 text-white font-bold rounded-2xl hover:bg-red-700 transition shadow-lg shadow-red-200"
+              >
+                مغادرة على أي حال
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

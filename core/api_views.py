@@ -8,6 +8,8 @@ from django.db.models import Count, Sum, Q, DecimalField
 from django.db.models.functions import Coalesce, TruncMonth
 from decimal import Decimal
 from django.conf import settings as django_settings
+from django.db import transaction
+from django.db.models.deletion import ProtectedError
 from core.models import Company, Branch, Store, Safe, Bank, Contact, Representative, Driver, SystemSettings
 from django.utils import timezone
 from datetime import timedelta
@@ -44,8 +46,8 @@ class DashboardStatsAPIView(APIView):
             'stores_count': Store.objects.count(),
             'safes_count': Safe.objects.count(),
             'contacts_count': Contact.objects.count(),
-            'customers_count': Contact.objects.filter(contact_type=Contact.CUSTOMER).count(),
-            'suppliers_count': Contact.objects.filter(contact_type=Contact.SUPPLIER).count(),
+            'customers_count': Contact.objects.filter(contact_type__in=[Contact.CUSTOMER, Contact.BOTH]).count(),
+            'suppliers_count': Contact.objects.filter(contact_type__in=[Contact.SUPPLIER, Contact.BOTH]).count(),
             'products_count': Product.objects.count(),
             'categories_count': Category.objects.count(),
             'invoices_count': Invoice.objects.count(),
@@ -57,7 +59,7 @@ class DashboardStatsAPIView(APIView):
         }
         
         # إضافة أكثر العملاء تعاملاً
-        top_customers = Contact.objects.filter(contact_type=Contact.CUSTOMER)\
+        top_customers = Contact.objects.filter(contact_type__in=[Contact.CUSTOMER, Contact.BOTH])\
             .annotate(
                 invoice_count=Count('invoices', filter=Q(invoices__invoice_type=Invoice.SALE)),
                 total_spent=Coalesce(
@@ -78,8 +80,8 @@ class DashboardStatsAPIView(APIView):
         
         # إضافة ملخص المديونيات
         try:
-            total_customers_balance = Contact.objects.filter(contact_type=Contact.CUSTOMER).aggregate(total=Sum('current_balance'))['total'] or 0
-            total_suppliers_balance = Contact.objects.filter(contact_type=Contact.SUPPLIER).aggregate(total=Sum('current_balance'))['total'] or 0
+            total_customers_balance = Contact.objects.filter(contact_type__in=[Contact.CUSTOMER, Contact.BOTH]).aggregate(total=Sum('current_balance'))['total'] or 0
+            total_suppliers_balance = Contact.objects.filter(contact_type__in=[Contact.SUPPLIER, Contact.BOTH]).aggregate(total=Sum('current_supplier_balance'))['total'] or 0
             
             stats['debt_summary'] = {
                 'total_customers_balance': abs(float(total_customers_balance)),
@@ -200,6 +202,93 @@ class ContactViewSet(viewsets.ModelViewSet):
     queryset = Contact.objects.all()
     serializer_class = ContactSerializer
     permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        queryset = Contact.objects.all()
+        contact_type = self.request.query_params.get('contact_type')
+        if contact_type:
+            if contact_type == 'customer':
+                queryset = queryset.filter(contact_type__in=[Contact.CUSTOMER, Contact.BOTH])
+            elif contact_type == 'supplier':
+                queryset = queryset.filter(contact_type__in=[Contact.SUPPLIER, Contact.BOTH])
+            else:
+                queryset = queryset.filter(contact_type=contact_type)
+        return queryset
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        
+        # التحقق من وجود بيانات مرتبطة في الموديلات المختلفة
+        # 1. الفواتير
+        if instance.invoices.exists():
+            return Response(
+                {"error": "لا يمكن حذف جهة الاتصال لوجود فواتير مرتبطة بها."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        # 2. السندات (القبض والصرف)
+        if instance.payments.exists():
+            return Response(
+                {"error": "لا يمكن حذف جهة الاتصال لوجود سندات قبض أو صرف مرتبطة بها."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        # 3. حركات الحساب
+        if instance.transactions.exists():
+            return Response(
+                {"error": "لا يمكن حذف جهة الاتصال لوجود حركات مالية مسجلة في كشف حسابها."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        # 4. المصروفات
+        if hasattr(instance, 'expenses') and instance.expenses.exists():
+            return Response(
+                {"error": "لا يمكن حذف جهة الاتصال لوجود مصروفات مرتبطة بها."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        # 5. الإيرادات
+        if hasattr(instance, 'incomes') and instance.incomes.exists():
+            return Response(
+                {"error": "لا يمكن حذف جهة الاتصال لوجود إيرادات مرتبطة بها."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # 6. إعدادات النظام (العميل/المورد الافتراضي)
+        settings = SystemSettings.get_settings()
+        if settings.default_customer == instance or settings.default_supplier == instance:
+            return Response(
+                {"error": "لا يمكن حذف جهة الاتصال لأنها محددة كجهة افتراضية في إعدادات النظام."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        # 7. التحقق من الحسابات المحاسبية المرتبطة ووجود قيود عليها
+        accounts_to_delete = []
+        for account_field in ['customer_account', 'supplier_account', 'account']:
+            acc = getattr(instance, account_field)
+            if acc:
+                if acc.journal_items.exists():
+                    return Response(
+                        {"error": f"لا يمكن حذف جهة الاتصال لوجود قيود محاسبية مسجلة على حسابها: {acc.name}"},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                accounts_to_delete.append(acc)
+
+        try:
+            # تنفيذ عملية الحذف لجهة الاتصال
+            # الحسابات المرتبطة سيتم التعامل معها عبر إشارة post_delete في signals.py
+            return super().destroy(request, *args, **kwargs)
+                
+        except ProtectedError as e:
+            # في حال وجود علاقة PROTECT لم يتم اكتشافها في الفحوصات السابقة
+            protected_objs = list(e.protected_objects)
+            obj_names = [str(obj) for obj in protected_objs[:3]]
+            error_msg = f"لا يمكن حذف جهة الاتصال لوجود بيانات مرتبطة بها في: {', '.join(obj_names)}"
+            if len(protected_objs) > 3:
+                error_msg += " ..."
+            return Response({"error": error_msg}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({"error": f"حدث خطأ غير متوقع أثناء الحذف: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class RepresentativeViewSet(viewsets.ModelViewSet):
     queryset = Representative.objects.all()

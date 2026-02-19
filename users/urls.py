@@ -3,6 +3,8 @@ from django.contrib.auth import views as auth_views
 from rest_framework.routers import DefaultRouter
 from . import views, api_views
 
+app_name = 'users'
+
 router = DefaultRouter()
 router.register(r'api/users', api_views.UserViewSet)
 router.register(r'api/custom-roles', api_views.CustomRoleViewSet)
@@ -12,7 +14,7 @@ urlpatterns = [
     # Authentication URLs
     path('register/', views.register_view, name='register'),
     path('login/', views.login_view, name='login'),
-    path('logout/', auth_views.LogoutView.as_view(template_name='users/logout.html', next_page='home'), name='logout'),
+    path('logout/', auth_views.LogoutView.as_view(template_name='users/logout.html', next_page='core:home'), name='logout'),
 
     # Profile URLs
     path('profile/', views.profile_view, name='profile'),

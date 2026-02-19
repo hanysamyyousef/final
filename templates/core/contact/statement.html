@@ -13,7 +13,7 @@
         </p>
     </div>
     <div class="col-md-4 text-end">
-        <a href="{% url 'contact_detail' contact.pk %}" class="btn btn-secondary">
+        <a href="{% url 'core:contact_detail' contact.pk %}" class="btn btn-secondary">
             <i class="fas fa-arrow-right"></i> العودة للتفاصيل
         </a>
         <button class="btn btn-primary" onclick="window.print()">
@@ -98,7 +98,7 @@
                         <button type="submit" class="btn btn-primary">
                             <i class="fas fa-search"></i> بحث
                         </button>
-                        <a href="{% url 'contact_statement' contact.pk %}" class="btn btn-secondary">
+                        <a href="{% url 'core:contact_statement' contact.pk %}" class="btn btn-secondary">
                             <i class="fas fa-times"></i> إلغاء
                         </a>
                     </div>
@@ -145,7 +145,7 @@
                         <td>{{ item.transaction.description }}</td>
                         <td>
                             {% if item.transaction.invoice %}
-                            <a href="{% url 'invoice_detail' item.transaction.invoice.id %}">
+                            <a href="{% url 'invoices:invoice_detail' item.transaction.invoice.id %}">
                                 {{ item.transaction.invoice.number }}
                             </a>
                             {% else %}

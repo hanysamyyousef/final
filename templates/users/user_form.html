@@ -41,7 +41,7 @@
                     <h3 class="card-title mb-0">
                         <i class="fas fa-user-plus"></i> {{ title }}
                     </h3>
-                    <a href="{% url 'user_list' %}" class="btn btn-secondary">
+                    <a href="{% url 'users:user_list' %}" class="btn btn-secondary">
                         <i class="fas fa-arrow-right"></i> العودة للقائمة
                     </a>
                 </div>
@@ -182,7 +182,7 @@
 
                         <!-- Submit Buttons -->
                         <div class="d-flex justify-content-between">
-                            <a href="{% url 'user_list' %}" class="btn btn-secondary">
+                            <a href="{% url 'users:user_list' %}" class="btn btn-secondary">
                                 <i class="fas fa-times"></i> إلغاء
                             </a>
                             <button type="submit" class="btn btn-primary">

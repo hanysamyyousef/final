@@ -146,7 +146,7 @@
                 <p class="register-subtitle">أدخل بياناتك لإنشاء حساب جديد في النظام</p>
             </div>
             <div class="register-body">
-                <form method="post" class="register-form" action="{% url 'register' %}">
+                <form method="post" class="register-form" action="{% url 'users:register' %}">
                     {% csrf_token %}
                     
                     {% if error_message %}
@@ -188,19 +188,19 @@
                 </form>
                 
                 <div class="social-register">
-                    <a href="{% url 'account_login' %}?next={% url 'home' %}&provider=google" class="social-btn google-btn">
+                    <a href="{% url 'account_login' %}?next={% url 'core:home' %}&provider=google" class="social-btn google-btn">
                         <i class="fab fa-google"></i>
                     </a>
-                    <a href="{% url 'account_login' %}?next={% url 'home' %}&provider=facebook" class="social-btn facebook-btn">
+                    <a href="{% url 'account_login' %}?next={% url 'core:home' %}&provider=facebook" class="social-btn facebook-btn">
                         <i class="fab fa-facebook-f"></i>
                     </a>
-                    <a href="{% url 'account_login' %}?next={% url 'home' %}&provider=twitter" class="social-btn twitter-btn">
+                    <a href="{% url 'account_login' %}?next={% url 'core:home' %}&provider=twitter" class="social-btn twitter-btn">
                         <i class="fab fa-twitter"></i>
                     </a>
                 </div>
             </div>
             <div class="register-footer">
-                لديك حساب بالفعل؟ <a href="{% url 'login' %}">تسجيل الدخول</a>
+                لديك حساب بالفعل؟ <a href="{% url 'users:login' %}">تسجيل الدخول</a>
             </div>
         </div>
     </div>

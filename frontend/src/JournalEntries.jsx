@@ -9,6 +9,7 @@ import {
   CheckCircle2, 
   Clock, 
   AlertCircle,
+  AlertTriangle,
   MoreVertical,
   Edit2,
   Trash2,
@@ -27,6 +28,49 @@ const JournalEntries = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState(null);
+
+  // DLP States
+  const [isDirty, setIsDirty] = useState(false);
+  const [showExitConfirm, setShowExitConfirm] = useState(false);
+  const [pendingCloseAction, setPendingCloseAction] = useState(null);
+
+  const markDirty = () => setIsDirty(true);
+
+  const handleSafeCloseModal = (modalSetter, formResetter = null) => {
+    if (isDirty) {
+      setPendingCloseAction(() => () => {
+        modalSetter(false);
+        if (formResetter) formResetter();
+        setIsDirty(false);
+      });
+      setShowExitConfirm(true);
+    } else {
+      modalSetter(false);
+      if (formResetter) formResetter();
+    }
+  };
+
+  const confirmExit = () => {
+    if (pendingCloseAction) {
+      pendingCloseAction();
+      setPendingCloseAction(null);
+    }
+    setShowExitConfirm(false);
+    setIsDirty(false);
+  };
+
+  // Browser beforeunload
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      if (isDirty) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [isDirty]);
+
   const [formData, setFormData] = useState({
     entry_number: '',
     date: new Date().toISOString().split('T')[0],
@@ -65,6 +109,7 @@ const JournalEntries = () => {
   }, []);
 
   const handleOpenModal = (entry = null) => {
+    setIsDirty(false);
     if (entry) {
       setEditingEntry(entry);
       setFormData({
@@ -79,6 +124,8 @@ const JournalEntries = () => {
           memo: item.memo || ''
         }))
       });
+      // Ensure dirty state is false after loading existing entry
+      setTimeout(() => setIsDirty(false), 0);
     } else {
       setEditingEntry(null);
       setFormData({
@@ -91,11 +138,14 @@ const JournalEntries = () => {
           { account: '', debit: 0, credit: 0, memo: '' }
         ]
       });
+      // Ensure dirty state is false after initializing new entry
+      setTimeout(() => setIsDirty(false), 0);
     }
     setIsModalOpen(true);
   };
 
   const handleAddItem = () => {
+    markDirty();
     setFormData({
       ...formData,
       items: [...formData.items, { account: '', debit: 0, credit: 0, memo: '' }]
@@ -103,11 +153,13 @@ const JournalEntries = () => {
   };
 
   const handleRemoveItem = (index) => {
+    markDirty();
     const newItems = formData.items.filter((_, i) => i !== index);
     setFormData({ ...formData, items: newItems });
   };
 
   const handleItemChange = (index, field, value) => {
+    markDirty();
     const newItems = [...formData.items];
     newItems[index][field] = value;
     
@@ -144,6 +196,7 @@ const JournalEntries = () => {
       } else {
         await api.post('/accounting/api/journal-entries/', formData);
       }
+      setIsDirty(false);
       setIsModalOpen(false);
       fetchEntries();
     } catch (err) {
@@ -324,14 +377,14 @@ const JournalEntries = () => {
 
       {/* Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-3xl w-full max-w-4xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 my-8">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto" onClick={() => handleSafeCloseModal(setIsModalOpen)}>
+          <div className="bg-white rounded-3xl w-full max-w-4xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 my-8" onClick={(e) => e.stopPropagation()}>
             <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
               <h2 className="text-xl font-black text-gray-800">
                 {editingEntry ? 'تعديل قيد محاسبي' : 'إضافة قيد يدوي جديد'}
               </h2>
               <button 
-                onClick={() => setIsModalOpen(false)}
+                onClick={() => handleSafeCloseModal(setIsModalOpen)}
                 className="p-2 hover:bg-white rounded-xl transition-colors text-gray-400 hover:text-gray-600 shadow-sm"
               >
                 <X size={20} />
@@ -348,7 +401,10 @@ const JournalEntries = () => {
                     required
                     className="w-full px-4 py-2.5 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition"
                     value={formData.entry_number}
-                    onChange={(e) => setFormData({...formData, entry_number: e.target.value})}
+                    onChange={(e) => {
+                      setFormData({...formData, entry_number: e.target.value});
+                      markDirty();
+                    }}
                   />
                 </div>
                 <div className="space-y-1.5">
@@ -358,7 +414,10 @@ const JournalEntries = () => {
                     required
                     className="w-full px-4 py-2.5 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition"
                     value={formData.date}
-                    onChange={(e) => setFormData({...formData, date: e.target.value})}
+                    onChange={(e) => {
+                      setFormData({...formData, date: e.target.value});
+                      markDirty();
+                    }}
                   />
                 </div>
                 <div className="md:col-span-2 space-y-1.5">
@@ -369,7 +428,10 @@ const JournalEntries = () => {
                     placeholder="مثال: سداد مصروفات إدارية..."
                     className="w-full px-4 py-2.5 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition"
                     value={formData.description}
-                    onChange={(e) => setFormData({...formData, description: e.target.value})}
+                    onChange={(e) => {
+                      setFormData({...formData, description: e.target.value});
+                      markDirty();
+                    }}
                   />
                 </div>
               </div>
@@ -481,13 +543,40 @@ const JournalEntries = () => {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setIsModalOpen(false)}
+                  onClick={() => handleSafeCloseModal(setIsModalOpen)}
                   className="flex-1 bg-gray-100 text-gray-600 py-3 rounded-xl font-bold hover:bg-gray-200 transition"
                 >
                   إلغاء
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Exit Confirmation Modal */}
+      {showExitConfirm && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm animate-in fade-in duration-200 text-right">
+          <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl p-8 animate-in zoom-in-95 duration-200">
+            <div className="w-16 h-16 bg-amber-50 text-amber-500 rounded-2xl flex items-center justify-center mb-6 mx-auto">
+              <AlertTriangle size={32} />
+            </div>
+            <h3 className="text-xl font-black text-gray-900 mb-2 text-center">هل أنت متأكد من الخروج؟</h3>
+            <p className="text-gray-500 font-medium mb-8 text-center">لديك تغييرات غير محفوظة، سيتم فقدانها إذا خرجت الآن.</p>
+            <div className="flex gap-3">
+              <button
+                onClick={confirmExit}
+                className="flex-1 bg-amber-500 text-white py-3 rounded-2xl font-bold hover:bg-amber-600 transition-all shadow-lg shadow-amber-100"
+              >
+                نعم، خروج
+              </button>
+              <button
+                onClick={() => setShowExitConfirm(false)}
+                className="flex-1 bg-gray-100 text-gray-600 py-3 rounded-2xl font-bold hover:bg-gray-200 transition-all"
+              >
+                البقاء
+              </button>
+            </div>
           </div>
         </div>
       )}

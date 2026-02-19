@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import api from './api';
-import { Plus, Building2, Phone, Mail, MapPin, Trash2, Edit2, X, Save } from 'lucide-react';
+import { Plus, Building2, Phone, Mail, MapPin, Trash2, Edit2, X, Save, AlertTriangle } from 'lucide-react';
 
 const Companies = () => {
   const [companies, setCompanies] = useState([]);
@@ -10,6 +10,51 @@ const Companies = () => {
   const [selectedCompany, setSelectedCompany] = useState(null);
   const [branches, setBranches] = useState([]);
   const [editingCompany, setEditingCompany] = useState(null);
+
+  // DLP States
+  const [isDirty, setIsDirty] = useState(false);
+  const [showExitConfirm, setShowExitConfirm] = useState(false);
+  const [pendingCloseAction, setPendingCloseAction] = useState(null);
+
+  const markDirty = () => setIsDirty(true);
+
+  const handleSafeCloseModal = (modalSetter, formResetter = null) => {
+    if (isDirty) {
+      setPendingCloseAction(() => () => {
+        modalSetter(false);
+        if (formResetter) formResetter();
+        setIsDirty(false);
+        setEditingCompany(null);
+      });
+      setShowExitConfirm(true);
+    } else {
+      modalSetter(false);
+      if (formResetter) formResetter();
+      setEditingCompany(null);
+    }
+  };
+
+  const confirmExit = () => {
+    if (pendingCloseAction) {
+      pendingCloseAction();
+      setPendingCloseAction(null);
+    }
+    setShowExitConfirm(false);
+    setIsDirty(false);
+  };
+
+  // Browser beforeunload
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      if (isDirty) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [isDirty]);
+
   const [branchFormData, setBranchFormData] = useState({
     name: '',
     address: '',
@@ -30,6 +75,7 @@ const Companies = () => {
     setSelectedCompany(company);
     fetchBranches(company.id);
     setBranchFormData({ name: '', address: '', phone: '', manager: '' });
+    setIsDirty(false);
     setIsBranchModalOpen(true);
   };
 
@@ -39,6 +85,7 @@ const Companies = () => {
       await api.post('/api/branches/', { ...branchFormData, company: selectedCompany.id });
       fetchBranches(selectedCompany.id);
       setBranchFormData({ name: '', address: '', phone: '', manager: '' });
+      setIsDirty(false);
     } catch (err) {
       console.error('Error saving branch:', err);
       alert('حدث خطأ أثناء حفظ الفرع');
@@ -81,6 +128,7 @@ const Companies = () => {
   }, []);
 
   const handleOpenModal = (company = null) => {
+    setIsDirty(false);
     if (company) {
       setEditingCompany(company);
       setFormData({
@@ -113,6 +161,7 @@ const Companies = () => {
       } else {
         await api.post('/api/companies/', formData);
       }
+      setIsDirty(false);
       setIsModalOpen(false);
       fetchCompanies();
     } catch (err) {
@@ -222,13 +271,13 @@ const Companies = () => {
       {/* Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="fixed inset-0 bg-gray-900/50 backdrop-blur-sm" onClick={() => setIsModalOpen(false)}></div>
+          <div className="fixed inset-0 bg-gray-900/50 backdrop-blur-sm" onClick={() => handleSafeCloseModal(setIsModalOpen)}></div>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg z-10 overflow-hidden animate-in fade-in zoom-in duration-200">
             <div className="flex items-center justify-between p-6 border-b border-gray-100">
               <h2 className="text-xl font-bold text-gray-800">
                 {editingCompany ? 'تعديل شركة' : 'إضافة شركة جديدة'}
               </h2>
-              <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-gray-600">
+              <button onClick={() => handleSafeCloseModal(setIsModalOpen)} className="text-gray-400 hover:text-gray-600">
                 <X size={24} />
               </button>
             </div>
@@ -242,7 +291,7 @@ const Companies = () => {
                     required
                     className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
                     value={formData.name}
-                    onChange={(e) => setFormData({...formData, name: e.target.value})}
+                    onChange={(e) => { setFormData({...formData, name: e.target.value}); markDirty(); }}
                   />
                 </div>
                 <div>
@@ -251,7 +300,7 @@ const Companies = () => {
                     type="text"
                     className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
                     value={formData.tax_number}
-                    onChange={(e) => setFormData({...formData, tax_number: e.target.value})}
+                    onChange={(e) => { setFormData({...formData, tax_number: e.target.value}); markDirty(); }}
                   />
                 </div>
                 <div>
@@ -260,7 +309,7 @@ const Companies = () => {
                     type="text"
                     className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
                     value={formData.address}
-                    onChange={(e) => setFormData({...formData, address: e.target.value})}
+                    onChange={(e) => { setFormData({...formData, address: e.target.value}); markDirty(); }}
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
@@ -270,7 +319,7 @@ const Companies = () => {
                       type="text"
                       className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
                       value={formData.phone}
-                      onChange={(e) => setFormData({...formData, phone: e.target.value})}
+                      onChange={(e) => { setFormData({...formData, phone: e.target.value}); markDirty(); }}
                     />
                   </div>
                   <div>
@@ -279,7 +328,7 @@ const Companies = () => {
                       type="email"
                       className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
                       value={formData.email}
-                      onChange={(e) => setFormData({...formData, email: e.target.value})}
+                      onChange={(e) => { setFormData({...formData, email: e.target.value}); markDirty(); }}
                     />
                   </div>
                 </div>
@@ -289,7 +338,7 @@ const Companies = () => {
                     rows="3"
                     className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
                     value={formData.notes}
-                    onChange={(e) => setFormData({...formData, notes: e.target.value})}
+                    onChange={(e) => { setFormData({...formData, notes: e.target.value}); markDirty(); }}
                   ></textarea>
                 </div>
               </div>
@@ -304,7 +353,7 @@ const Companies = () => {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setIsModalOpen(false)}
+                  onClick={() => handleSafeCloseModal(setIsModalOpen)}
                   className="flex-1 bg-gray-100 text-gray-600 py-3 rounded-xl font-bold hover:bg-gray-200 transition"
                 >
                   إلغاء
@@ -317,13 +366,13 @@ const Companies = () => {
       {/* Branch Modal */}
       {isBranchModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="fixed inset-0 bg-gray-900/50 backdrop-blur-sm" onClick={() => setIsBranchModalOpen(false)}></div>
+          <div className="fixed inset-0 bg-gray-900/50 backdrop-blur-sm" onClick={() => handleSafeCloseModal(setIsBranchModalOpen)}></div>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl z-10 overflow-hidden animate-in fade-in zoom-in duration-200">
             <div className="flex items-center justify-between p-6 border-b border-gray-100">
               <h2 className="text-xl font-bold text-gray-800">
                 فروع شركة {selectedCompany?.name}
               </h2>
-              <button onClick={() => setIsBranchModalOpen(false)} className="text-gray-400 hover:text-gray-600">
+              <button onClick={() => handleSafeCloseModal(setIsBranchModalOpen)} className="text-gray-400 hover:text-gray-600">
                 <X size={24} />
               </button>
             </div>
@@ -338,28 +387,28 @@ const Companies = () => {
                     required
                     className="px-4 py-2 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
                     value={branchFormData.name}
-                    onChange={(e) => setBranchFormData({...branchFormData, name: e.target.value})}
+                    onChange={(e) => { setBranchFormData({...branchFormData, name: e.target.value}); markDirty(); }}
                   />
                   <input
                     type="text"
                     placeholder="المدير"
                     className="px-4 py-2 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
                     value={branchFormData.manager}
-                    onChange={(e) => setBranchFormData({...branchFormData, manager: e.target.value})}
+                    onChange={(e) => { setBranchFormData({...branchFormData, manager: e.target.value}); markDirty(); }}
                   />
                   <input
                     type="text"
                     placeholder="الهاتف"
                     className="px-4 py-2 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
                     value={branchFormData.phone}
-                    onChange={(e) => setBranchFormData({...branchFormData, phone: e.target.value})}
+                    onChange={(e) => { setBranchFormData({...branchFormData, phone: e.target.value}); markDirty(); }}
                   />
                   <input
                     type="text"
                     placeholder="العنوان"
                     className="px-4 py-2 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
                     value={branchFormData.address}
-                    onChange={(e) => setBranchFormData({...branchFormData, address: e.target.value})}
+                    onChange={(e) => { setBranchFormData({...branchFormData, address: e.target.value}); markDirty(); }}
                   />
                 </div>
                 <button type="submit" className="w-full bg-blue-600 text-white py-2 rounded-lg font-bold hover:bg-blue-700 transition">
@@ -384,6 +433,33 @@ const Companies = () => {
                   ))
                 )}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Exit Confirmation Modal */}
+      {showExitConfirm && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm animate-in fade-in duration-200 text-right">
+          <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl p-8 animate-in zoom-in-95 duration-200">
+            <div className="w-16 h-16 bg-amber-50 text-amber-500 rounded-2xl flex items-center justify-center mb-6 mx-auto">
+              <AlertTriangle size={32} />
+            </div>
+            <h3 className="text-xl font-black text-gray-900 mb-2 text-center">هل أنت متأكد من الخروج؟</h3>
+            <p className="text-gray-500 font-medium mb-8 text-center">لديك تغييرات غير محفوظة، سيتم فقدانها إذا خرجت الآن.</p>
+            <div className="flex gap-3">
+              <button
+                onClick={confirmExit}
+                className="flex-1 bg-amber-500 text-white py-3 rounded-2xl font-bold hover:bg-amber-600 transition-all shadow-lg shadow-amber-100"
+              >
+                نعم، خروج
+              </button>
+              <button
+                onClick={() => setShowExitConfirm(false)}
+                className="flex-1 bg-gray-100 text-gray-600 py-3 rounded-2xl font-bold hover:bg-gray-200 transition-all"
+              >
+                البقاء
+              </button>
             </div>
           </div>
         </div>

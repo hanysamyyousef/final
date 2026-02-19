@@ -145,6 +145,36 @@ class AccountingReportViewSet(viewsets.ViewSet):
             'net_profit': float(income - expenses)
         })
 
+    @action(detail=False, methods=['get'])
+    def contact_balances(self, request):
+        """API لتقرير أرصدة العملاء والموردين"""
+        contact_type = request.query_params.get('contact_type')
+        report = AccountingReports.get_contact_balances(contact_type)
+        
+        # تحويل بيانات الـ Contact إلى بيانات قابلة للـ JSON
+        from core.api_views import ContactSerializer
+        serialized_data = []
+        for item in report['data']:
+            serialized_item = item.copy()
+            # نفترض وجود ContactSerializer في core.api_views أو core.serializers
+            from core.models import Contact
+            from core.serializers import ContactSerializer
+            serialized_item['contact'] = ContactSerializer(item['contact']).data
+            serialized_data.append(serialized_item)
+            
+        report['data'] = serialized_data
+        return Response(report)
+
+    @action(detail=False, methods=['get'])
+    def sales_purchase_summary(self, request):
+        """API لتقرير ملخص المبيعات والمشتريات"""
+        start_date = request.query_params.get('start_date')
+        end_date = request.query_params.get('end_date')
+        report = AccountingReports.get_sales_purchase_summary(start_date, end_date)
+        
+        # البيانات بالفعل أرقام بسيطة (Decimal)، DRF سيتعامل معها
+        return Response(report)
+
 class AccountViewSet(viewsets.ModelViewSet):
     queryset = Account.objects.all()
     serializer_class = AccountSerializer

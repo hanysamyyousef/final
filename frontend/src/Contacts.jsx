@@ -15,7 +15,8 @@ import {
   Edit2,
   X,
   Save,
-  CreditCard
+  CreditCard,
+  AlertTriangle
 } from 'lucide-react';
 
 const Contacts = () => {
@@ -32,6 +33,38 @@ const Contacts = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState(typeParam || 'all');
+  const [isDirty, setIsDirty] = useState(false);
+  const [showExitConfirm, setShowExitConfirm] = useState(false);
+
+  const markDirty = () => setIsDirty(true);
+
+  const handleSafeCloseModal = () => {
+    if (isDirty) {
+      setShowExitConfirm(true);
+    } else {
+      setIsModalOpen(false);
+      setEditingContact(null);
+    }
+  };
+
+  const confirmExit = () => {
+    setIsDirty(false);
+    setShowExitConfirm(false);
+    setIsModalOpen(false);
+    setEditingContact(null);
+  };
+
+  // Handle browser back/close
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      if (isDirty) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [isDirty]);
 
   useEffect(() => {
     if (typeParam) {
@@ -56,6 +89,8 @@ const Contacts = () => {
     initial_balance: 0,
     initial_balance_date: new Date().toISOString().split('T')[0],
     initial_balance_type: 'debit',
+    initial_supplier_balance: 0,
+    initial_supplier_balance_type: 'credit',
     pricing_system: 'retail',
     notes: ''
   });
@@ -93,6 +128,7 @@ const Contacts = () => {
   }, []);
 
   const handleOpenModal = (contact = null) => {
+    setIsDirty(false);
     if (contact) {
       setEditingContact(contact);
       setFormData({
@@ -105,6 +141,8 @@ const Contacts = () => {
         initial_balance: contact.initial_balance || 0,
         initial_balance_date: contact.initial_balance_date || new Date().toISOString().split('T')[0],
         initial_balance_type: contact.initial_balance_type || 'debit',
+        initial_supplier_balance: contact.initial_supplier_balance || 0,
+        initial_supplier_balance_type: contact.initial_supplier_balance_type || 'credit',
         pricing_system: contact.pricing_system || 'retail',
         notes: contact.notes || ''
       });
@@ -120,6 +158,8 @@ const Contacts = () => {
         initial_balance: 0,
         initial_balance_date: new Date().toISOString().split('T')[0],
         initial_balance_type: 'debit',
+        initial_supplier_balance: 0,
+        initial_supplier_balance_type: 'credit',
         pricing_system: 'retail',
         notes: ''
       });
@@ -135,6 +175,7 @@ const Contacts = () => {
       } else {
         await api.post('/api/contacts/', formData);
       }
+      setIsDirty(false);
       setIsModalOpen(false);
       fetchContacts();
     } catch (err) {
@@ -149,6 +190,8 @@ const Contacts = () => {
         fetchContacts();
       } catch (err) {
         console.error('Error deleting contact:', err);
+        const errorMessage = err.response?.data?.error || err.response?.data?.detail || 'حدث خطأ أثناء الحذف';
+        alert(errorMessage);
       }
     }
   };
@@ -156,7 +199,16 @@ const Contacts = () => {
   const filteredContacts = contacts.filter(contact => {
     const matchesSearch = contact.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                         (contact.phone && contact.phone.includes(searchTerm));
-    const matchesTab = activeTab === 'all' || contact.contact_type === activeTab;
+    
+    let matchesTab = activeTab === 'all';
+    if (!matchesTab) {
+      if (activeTab === 'customer') {
+        matchesTab = contact.contact_type === 'customer' || contact.contact_type === 'both';
+      } else if (activeTab === 'supplier') {
+        matchesTab = contact.contact_type === 'supplier' || contact.contact_type === 'both';
+      }
+    }
+    
     return matchesSearch && matchesTab;
   });
 
@@ -170,7 +222,7 @@ const Contacts = () => {
     <div className="p-6 space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">العملاء والموردين</h1>
+          <h1 className="text-2xl font-bold text-gray-800">جهات الاتصال</h1>
           <p className="text-gray-500">إدارة كافة جهات التعامل مع النظام</p>
         </div>
         <button 
@@ -224,13 +276,22 @@ const Contacts = () => {
                 </div>
 
                 <div className="flex items-start gap-4">
-                  <div className={`p-3 rounded-xl ${contact.contact_type === 'customer' ? 'bg-blue-50 text-blue-600' : 'bg-amber-50 text-amber-600'}`}>
+                  <div className={`p-3 rounded-xl ${
+                    contact.contact_type === 'customer' ? 'bg-blue-50 text-blue-600' : 
+                    contact.contact_type === 'supplier' ? 'bg-amber-50 text-amber-600' : 
+                    'bg-purple-50 text-purple-600'
+                  }`}>
                     <Users size={24} />
                   </div>
                   <div className="space-y-1">
                     <h3 className="font-bold text-gray-900">{contact.name}</h3>
-                    <span className={`inline-block px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider ${contact.contact_type === 'customer' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'}`}>
-                      {contact.contact_type === 'customer' ? 'عميل' : 'مورد'}
+                    <span className={`inline-block px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider ${
+                      contact.contact_type === 'customer' ? 'bg-blue-100 text-blue-700' : 
+                      contact.contact_type === 'supplier' ? 'bg-amber-100 text-amber-700' : 
+                      'bg-purple-100 text-purple-700'
+                    }`}>
+                      {contact.contact_type === 'customer' ? 'عميل' : 
+                       contact.contact_type === 'supplier' ? 'مورد' : 'عميل ومورد'}
                     </span>
                   </div>
                 </div>
@@ -250,11 +311,23 @@ const Contacts = () => {
                   </div>
                 </div>
 
-                <div className="mt-4 flex justify-between items-center bg-gray-50 p-3 rounded-xl">
-                  <div className="text-xs text-gray-500 font-medium">الرصيد الحالي</div>
-                  <div className={`text-sm font-black ${(contact.current_balance || 0) < 0 ? 'text-red-600' : 'text-green-600'}`}>
-                    {contact.current_balance || 0} ج.م
-                  </div>
+                <div className="mt-4 space-y-2">
+                  {(contact.contact_type === 'customer' || contact.contact_type === 'both') && (
+                    <div className="flex justify-between items-center bg-blue-50/50 p-2.5 rounded-xl border border-blue-100/50">
+                      <div className="text-[10px] text-blue-600 font-bold uppercase">رصيد العميل</div>
+                      <div className={`text-sm font-black ${(contact.current_balance || 0) < 0 ? 'text-red-600' : 'text-green-600'}`}>
+                        {contact.current_balance || 0} ج.م
+                      </div>
+                    </div>
+                  )}
+                  {(contact.contact_type === 'supplier' || contact.contact_type === 'both') && (
+                    <div className="flex justify-between items-center bg-amber-50/50 p-2.5 rounded-xl border border-amber-100/50">
+                      <div className="text-[10px] text-amber-600 font-bold uppercase">رصيد المورد</div>
+                      <div className={`text-sm font-black ${(contact.current_supplier_balance || 0) < 0 ? 'text-red-600' : 'text-green-600'}`}>
+                        {contact.current_supplier_balance || 0} ج.م
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
@@ -274,7 +347,7 @@ const Contacts = () => {
             </div>
             <div className="space-y-3">
               <div className="flex justify-between text-sm">
-                <span className="text-blue-100">مستحق للعملاء</span>
+                <span className="text-blue-100">مستحق على للعملاء</span>
                 <span className="font-bold">{debtSummary.total_customers_balance.toLocaleString()} ج.م</span>
               </div>
               <div className="w-full bg-white/20 h-1.5 rounded-full">
@@ -284,7 +357,7 @@ const Contacts = () => {
                 ></div>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-blue-100">مستحق للموردين</span>
+                <span className="text-blue-100">دائن للموردين</span>
                 <span className="font-bold">{debtSummary.total_suppliers_balance.toLocaleString()} ج.م</span>
               </div>
               <div className="w-full bg-white/20 h-1.5 rounded-full">
@@ -329,12 +402,12 @@ const Contacts = () => {
               <h2 className="text-xl font-black text-gray-900">
                 {editingContact ? 'تعديل بيانات الطرف' : 'إضافة طرف جديد'}
               </h2>
-              <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-gray-100 rounded-xl transition-colors">
+              <button onClick={handleSafeCloseModal} className="p-2 hover:bg-gray-100 rounded-xl transition-colors">
                 <X size={20} />
               </button>
             </div>
             
-            <form onSubmit={handleSave} className="p-6 space-y-4">
+            <form onSubmit={handleSave} className="p-6 space-y-4 max-h-[calc(100vh-200px)] overflow-y-auto custom-scrollbar">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <label className="text-sm font-bold text-gray-700">الاسم</label>
@@ -343,7 +416,10 @@ const Contacts = () => {
                     required
                     className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                     value={formData.name}
-                    onChange={(e) => setFormData({...formData, name: e.target.value})}
+                    onChange={(e) => {
+                      setFormData({...formData, name: e.target.value});
+                      markDirty();
+                    }}
                   />
                 </div>
                 <div className="space-y-1.5">
@@ -351,10 +427,14 @@ const Contacts = () => {
                   <select 
                     className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                     value={formData.contact_type}
-                    onChange={(e) => setFormData({...formData, contact_type: e.target.value})}
+                    onChange={(e) => {
+                      setFormData({...formData, contact_type: e.target.value});
+                      markDirty();
+                    }}
                   >
                     <option value="customer">عميل</option>
                     <option value="supplier">مورد</option>
+                    <option value="both">عميل ومورد</option>
                   </select>
                 </div>
                 <div className="space-y-1.5">
@@ -363,7 +443,10 @@ const Contacts = () => {
                     type="text"
                     className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                     value={formData.phone}
-                    onChange={(e) => setFormData({...formData, phone: e.target.value})}
+                    onChange={(e) => {
+                      setFormData({...formData, phone: e.target.value});
+                      markDirty();
+                    }}
                   />
                 </div>
                 <div className="space-y-1.5">
@@ -372,7 +455,10 @@ const Contacts = () => {
                     type="email"
                     className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                     value={formData.email}
-                    onChange={(e) => setFormData({...formData, email: e.target.value})}
+                    onChange={(e) => {
+                      setFormData({...formData, email: e.target.value});
+                      markDirty();
+                    }}
                   />
                 </div>
                 <div className="space-y-1.5 md:col-span-2">
@@ -381,7 +467,10 @@ const Contacts = () => {
                     type="text"
                     className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                     value={formData.address}
-                    onChange={(e) => setFormData({...formData, address: e.target.value})}
+                    onChange={(e) => {
+                      setFormData({...formData, address: e.target.value});
+                      markDirty();
+                    }}
                   />
                 </div>
                 <div className="space-y-1.5">
@@ -390,7 +479,10 @@ const Contacts = () => {
                     type="text"
                     className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                     value={formData.tax_number}
-                    onChange={(e) => setFormData({...formData, tax_number: e.target.value})}
+                    onChange={(e) => {
+                      setFormData({...formData, tax_number: e.target.value});
+                      markDirty();
+                    }}
                   />
                 </div>
                 <div className="space-y-1.5">
@@ -398,7 +490,10 @@ const Contacts = () => {
                   <select 
                     className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                     value={formData.pricing_system}
-                    onChange={(e) => setFormData({...formData, pricing_system: e.target.value})}
+                    onChange={(e) => {
+                      setFormData({...formData, pricing_system: e.target.value});
+                      markDirty();
+                    }}
                   >
                     <option value="retail">مستهلك</option>
                     <option value="wholesale">جملة</option>
@@ -406,41 +501,113 @@ const Contacts = () => {
                     <option value="supplier">سعر المورد</option>
                   </select>
                 </div>
-                <div className="space-y-1.5">
-                  <label className="text-sm font-bold text-gray-700">الرصيد الافتتاحي</label>
-                  <input 
-                    type="number"
-                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                    value={formData.initial_balance}
-                    onChange={(e) => setFormData({...formData, initial_balance: e.target.value})}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-sm font-bold text-gray-700">نوع الرصيد</label>
-                  <select 
-                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                    value={formData.initial_balance_type}
-                    onChange={(e) => setFormData({...formData, initial_balance_type: e.target.value})}
-                  >
-                    <option value="debit">مدين</option>
-                    <option value="credit">دائن</option>
-                  </select>
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-sm font-bold text-gray-700">تاريخ الرصيد الافتتاحي</label>
-                  <input 
-                    type="date"
-                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                    value={formData.initial_balance_date}
-                    onChange={(e) => setFormData({...formData, initial_balance_date: e.target.value})}
-                  />
+                <div className="space-y-1.5 md:col-span-2 p-4 bg-gray-50 rounded-2xl border border-gray-100 space-y-4">
+                  <h4 className="text-xs font-black text-gray-400 uppercase tracking-wider">الأرصدة الافتتاحية</h4>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Customer Balance Section */}
+                    {(formData.contact_type === 'customer' || formData.contact_type === 'both') && (
+                      <div className="space-y-4 p-4 bg-white rounded-xl border border-gray-100 shadow-sm">
+                        <div className="flex justify-between items-center">
+                          <div className="text-xs font-bold text-blue-600">بيانات رصيد العميل</div>
+                          {editingContact?.customer_account_name && (
+                            <div className="text-[10px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded-md font-bold">
+                              حساب: {editingContact.customer_account_name}
+                            </div>
+                          )}
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-xs text-gray-500">الرصيد الافتتاحي (عميل)</label>
+                          <input 
+                            type="number"
+                            className="w-full px-4 py-2 bg-gray-50 border border-gray-100 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                            value={formData.initial_balance}
+                            onChange={(e) => {
+                              setFormData({...formData, initial_balance: e.target.value});
+                              markDirty();
+                            }}
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-xs text-gray-500">نوع الرصيد</label>
+                          <select 
+                            className="w-full px-4 py-2 bg-gray-50 border border-gray-100 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                            value={formData.initial_balance_type}
+                            onChange={(e) => {
+                              setFormData({...formData, initial_balance_type: e.target.value});
+                              markDirty();
+                            }}
+                          >
+                            <option value="debit">مدين (عليه)</option>
+                            <option value="credit">دائن (له)</option>
+                          </select>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Supplier Balance Section */}
+                    {(formData.contact_type === 'supplier' || formData.contact_type === 'both') && (
+                      <div className="space-y-4 p-4 bg-white rounded-xl border border-gray-100 shadow-sm">
+                        <div className="flex justify-between items-center">
+                          <div className="text-xs font-bold text-amber-600">بيانات رصيد المورد</div>
+                          {editingContact?.supplier_account_name && (
+                            <div className="text-[10px] bg-amber-50 text-amber-600 px-2 py-0.5 rounded-md font-bold">
+                              حساب: {editingContact.supplier_account_name}
+                            </div>
+                          )}
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-xs text-gray-500">الرصيد الافتتاحي (مورد)</label>
+                          <input 
+                            type="number"
+                            className="w-full px-4 py-2 bg-gray-50 border border-gray-100 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                            value={formData.initial_supplier_balance}
+                            onChange={(e) => {
+                              setFormData({...formData, initial_supplier_balance: e.target.value});
+                              markDirty();
+                            }}
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-xs text-gray-500">نوع الرصيد</label>
+                          <select 
+                            className="w-full px-4 py-2 bg-gray-50 border border-gray-100 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                            value={formData.initial_supplier_balance_type}
+                            onChange={(e) => {
+                              setFormData({...formData, initial_supplier_balance_type: e.target.value});
+                              markDirty();
+                            }}
+                          >
+                            <option value="credit">دائن (له)</option>
+                            <option value="debit">مدين (عليه)</option>
+                          </select>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs text-gray-500">تاريخ الأرصدة الافتتاحية</label>
+                    <input 
+                      type="date"
+                      className="w-full px-4 py-2 bg-gray-50 border border-gray-100 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                      value={formData.initial_balance_date}
+                      onChange={(e) => {
+                        setFormData({...formData, initial_balance_date: e.target.value});
+                        markDirty();
+                      }}
+                    />
+                  </div>
                 </div>
                 <div className="space-y-1.5 md:col-span-2">
                   <label className="text-sm font-bold text-gray-700">ملاحظات</label>
                   <textarea 
                     className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all h-24 resize-none"
                     value={formData.notes}
-                    onChange={(e) => setFormData({...formData, notes: e.target.value})}
+                    onChange={(e) => {
+                      setFormData({...formData, notes: e.target.value});
+                      markDirty();
+                    }}
                   ></textarea>
                 </div>
               </div>
@@ -455,13 +622,46 @@ const Contacts = () => {
                 </button>
                 <button 
                   type="button"
-                  onClick={() => setIsModalOpen(false)}
+                  onClick={handleSafeCloseModal}
                   className="flex-1 bg-gray-100 text-gray-700 py-3 rounded-xl font-bold hover:bg-gray-200 transition-all"
                 >
                   إلغاء
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Exit Confirmation Modal */}
+      {showExitConfirm && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-8 space-y-6 animate-in zoom-in-95 duration-200">
+            <div className="flex flex-col items-center text-center space-y-4">
+              <div className="w-16 h-16 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center">
+                <AlertTriangle size={32} />
+              </div>
+              <div className="space-y-2">
+                <h3 className="text-xl font-bold text-gray-900">تنبيه: بيانات غير محفوظة</h3>
+                <p className="text-gray-500">
+                  لقد قمت بإجراء تغييرات ولم يتم حفظها بعد. هل أنت متأكد من رغبتك في المغادرة وفقدان هذه البيانات؟
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowExitConfirm(false)}
+                className="flex-1 px-4 py-3 bg-gray-100 text-gray-700 font-bold rounded-2xl hover:bg-gray-200 transition"
+              >
+                البقاء والحفظ
+              </button>
+              <button
+                onClick={confirmExit}
+                className="flex-1 px-4 py-3 bg-red-600 text-white font-bold rounded-2xl hover:bg-red-700 transition shadow-lg shadow-red-200"
+              >
+                مغادرة على أي حال
+              </button>
+            </div>
           </div>
         </div>
       )}

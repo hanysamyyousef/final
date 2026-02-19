@@ -2,11 +2,15 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from . import views, api_views
 
+app_name = 'products'
+
 router = DefaultRouter()
 router.register(r'categories', api_views.CategoryViewSet)
 router.register(r'units', api_views.UnitViewSet)
 router.register(r'products', api_views.ProductViewSet)
 router.register(r'product-units', api_views.ProductUnitViewSet)
+router.register(r'custom-fields', api_views.ProductCustomFieldViewSet)
+router.register(r'custom-field-values', api_views.ProductCustomFieldValueViewSet)
 
 urlpatterns = [
     # API URLs

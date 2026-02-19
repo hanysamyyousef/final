@@ -18,6 +18,7 @@ import {
   Truck,
   ChevronDown,
   ArrowRightLeft,
+  ClipboardList,
   Activity
 } from 'lucide-react';
 
@@ -100,8 +101,7 @@ const Layout = ({ children, onLogout }) => {
       children: [
         { id: 'companies', label: 'الشركات', to: '/companies', icon: <Building2 size={16} /> },
         { id: 'branches', label: 'الفروع', to: '/branches', icon: <Activity size={16} /> },
-        { id: 'customers', label: 'العملاء', to: '/contacts?type=customer', icon: <Users size={16} /> },
-        { id: 'suppliers', label: 'الموردين', to: '/contacts?type=supplier', icon: <Users size={16} /> },
+        { id: 'contacts', label: 'جهات الاتصال', to: '/contacts', icon: <Users size={16} /> },
         { id: 'inventory', label: 'المخازن', to: '/inventory', icon: <Warehouse size={16} /> },
         { id: 'products', label: 'المنتجات', to: '/products', icon: <Package size={16} /> },
       ]
@@ -117,8 +117,12 @@ const Layout = ({ children, onLogout }) => {
         { id: 'purchase-invoice', label: 'شراء', to: '/invoices/purchase', icon: <FileText size={16} /> },
         { id: 'purchase-return', label: 'مرتجع شراء', to: '/invoices/purchase-return', icon: <FileText size={16} /> },
         { id: 'damaged', label: 'اذن هالك منتجات', to: '/invoices/damaged', icon: <Package size={16} /> },
-        { id: 'inventory-issue', label: 'اذن صرف مخزنى', to: '/inventory-operations/issue', icon: <ArrowRightLeft size={16} /> },
-        { id: 'inventory-receive', label: 'اذن استلام مخزنى', to: '/inventory-operations/receive', icon: <ArrowRightLeft size={16} /> },
+        { id: 'opening-balance', label: 'رصيد أول المدة', to: '/inventory-operations/opening-balances', icon: <Package size={16} /> },
+        { id: 'inventory-adjustments', label: 'تسوية مخزنية', to: '/inventory-operations/adjustments', icon: <ClipboardList size={16} /> },
+        { id: 'inventory-transfers', label: 'تحويل مخزنى', to: '/inventory-operations/transfers', icon: <ArrowRightLeft size={16} /> },
+        { id: 'store-permits', label: 'أرشيف الأذونات', to: '/store-permits', icon: <FileText size={16} /> },
+        { id: 'inventory-issue', label: 'اذن صرف مخزنى', to: '/store-permits/issue', icon: <ArrowRightLeft size={16} /> },
+        { id: 'inventory-receive', label: 'اذن استلام مخزنى', to: '/store-permits/receive', icon: <ArrowRightLeft size={16} /> },
       ]
     },
     { 
@@ -141,8 +145,10 @@ const Layout = ({ children, onLogout }) => {
         { id: 'journal', label: 'القيود اليومية', to: '/journal-entries', icon: <BookOpen size={16} /> },
         { id: 'chart', label: 'دليل الحسابات', to: '/accounting/chart', icon: <Calculator size={16} /> },
         { id: 'finances', label: 'المالية', to: '/finances', icon: <Wallet size={16} /> },
+        { id: 'acc-settings', label: 'إعدادات الحسابات', to: '/accounting-settings', icon: <Settings size={16} /> },
       ]
     },
+    { id: 'reports', label: 'التقارير المالية', to: '/reports', icon: <BarChart3 size={18} /> },
     { id: 'users-permissions', label: 'المستخدمين والصلاحيات', to: '/users-permissions', icon: <Users size={18} /> },
     { id: 'settings', label: 'الإعدادات', to: '/settings', icon: <Settings size={18} /> },
   ];

@@ -57,11 +57,11 @@
                     </h3>
                     <div>
                         {% if request.user.profile.role == 'admin' %}
-                        <a href="{% url 'user_edit' view_user.id %}" class="btn btn-warning me-2">
+                        <a href="{% url 'users:user_edit' view_user.id %}" class="btn btn-warning me-2">
                             <i class="fas fa-edit"></i> تعديل
                         </a>
                         {% endif %}
-                        <a href="{% url 'user_list' %}" class="btn btn-secondary">
+                        <a href="{% url 'users:user_list' %}" class="btn btn-secondary">
                             <i class="fas fa-arrow-right"></i> العودة للقائمة
                         </a>
                     </div>
@@ -227,7 +227,7 @@
                                     {% if view_user.is_active %}تعطيل الحساب{% else %}تفعيل الحساب{% endif %}
                                 </button>
                                 
-                                <a href="{% url 'user_delete' view_user.id %}" class="btn btn-danger" 
+                                <a href="{% url 'users:user_delete' view_user.id %}" class="btn btn-danger" 
                                    onclick="return confirm('هل أنت متأكد من حذف هذا المستخدم؟')">
                                     <i class="fas fa-trash"></i> حذف المستخدم
                                 </a>
@@ -280,7 +280,7 @@ $(document).ready(function() {
     $('#saveRoleBtn').click(function() {
         const newRole = $('#newRole').val();
         
-        $.post('{% url "change_user_role" view_user.id %}', {
+        $.post('{% url "users:change_user_role" view_user.id %}', {
             'role': newRole,
             'csrfmiddlewaretoken': $('[name=csrfmiddlewaretoken]').val()
         })
@@ -300,7 +300,7 @@ $(document).ready(function() {
     $('.toggle-status-btn').click(function() {
         const userId = $(this).data('user-id');
         
-        $.post('{% url "toggle_user_status" view_user.id %}', {
+        $.post('{% url "users:toggle_user_status" view_user.id %}', {
             'csrfmiddlewaretoken': $('[name=csrfmiddlewaretoken]').val()
         })
         .done(function(data) {

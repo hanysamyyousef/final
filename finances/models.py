@@ -48,6 +48,7 @@ class SafeTransaction(models.Model):
     WITHDRAWAL = 'withdrawal'
     EXPENSE = 'expense'
     INCOME = 'income'
+    DAMAGED = 'damaged'
 
     TRANSACTION_TYPE_CHOICES = [
         (SALE_INVOICE, _("فاتورة بيع")),
@@ -60,6 +61,7 @@ class SafeTransaction(models.Model):
         (WITHDRAWAL, _("سحب")),
         (EXPENSE, _("مصروف")),
         (INCOME, _("إيراد")),
+        (DAMAGED, _("تالف")),
     ]
 
     safe = models.ForeignKey(Safe, on_delete=models.CASCADE, related_name='transactions', verbose_name=_("الخزنة"), null=True, blank=True)
@@ -96,6 +98,8 @@ class SafeTransaction(models.Model):
                 self.transaction_type = self.SALE_RETURN_INVOICE
             elif self.invoice.invoice_type == 'purchase_return':
                 self.transaction_type = self.PURCHASE_RETURN_INVOICE
+            elif self.invoice.invoice_type == 'damaged':
+                self.transaction_type = self.DAMAGED
 
     @staticmethod
     def recalculate_balances(obj):
@@ -109,9 +113,9 @@ class SafeTransaction(models.Model):
         with transaction.atomic():
             # الحصول على جميع حركات الخزنة أو البنك مرتبة حسب التاريخ
             if is_safe:
-                transactions = SafeTransaction.objects.filter(safe=obj).order_by('date')
+                transactions = SafeTransaction.objects.filter(safe=obj).order_by('date', 'id')
             else:
-                transactions = SafeTransaction.objects.filter(bank=obj).order_by('date')
+                transactions = SafeTransaction.objects.filter(bank=obj).order_by('date', 'id')
 
             # إعادة تعيين الرصيد إلى الرصيد الافتتاحي
             current_balance = obj.initial_balance
@@ -128,7 +132,7 @@ class SafeTransaction(models.Model):
                 if trans.transaction_type in [SafeTransaction.SALE_INVOICE, SafeTransaction.COLLECTION, SafeTransaction.DEPOSIT, SafeTransaction.INCOME]:
                     # عمليات تزيد الرصيد
                     trans.balance_after = trans.balance_before + trans.amount
-                elif trans.transaction_type in [SafeTransaction.PURCHASE_INVOICE, SafeTransaction.PAYMENT, SafeTransaction.WITHDRAWAL, SafeTransaction.EXPENSE]:
+                elif trans.transaction_type in [SafeTransaction.PURCHASE_INVOICE, SafeTransaction.PAYMENT, SafeTransaction.WITHDRAWAL, SafeTransaction.EXPENSE, SafeTransaction.DAMAGED]:
                     # عمليات تنقص الرصيد
                     trans.balance_after = trans.balance_before - trans.amount
                 elif trans.transaction_type == SafeTransaction.SALE_RETURN_INVOICE:
@@ -196,6 +200,7 @@ class ContactTransaction(models.Model):
     PURCHASE_RETURN_INVOICE = 'purchase_return_invoice'
     COLLECTION = 'collection'
     PAYMENT = 'payment'
+    DAMAGED = 'damaged'
 
     TRANSACTION_TYPE_CHOICES = [
         (SALE_INVOICE, _("فاتورة بيع")),
@@ -204,9 +209,10 @@ class ContactTransaction(models.Model):
         (PURCHASE_RETURN_INVOICE, _("مرتجع شراء")),
         (COLLECTION, _("تحصيل")),
         (PAYMENT, _("دفع")),
+        (DAMAGED, _("تالف")),
     ]
 
-    contact = models.ForeignKey(Contact, on_delete=models.CASCADE, related_name='transactions', verbose_name=_("جهة الاتصال"))
+    contact = models.ForeignKey(Contact, on_delete=models.PROTECT, related_name='transactions', verbose_name=_("جهة الاتصال"))
     date = models.DateTimeField(_("تاريخ العملية"), default=timezone.now)
     amount = models.DecimalField(_("المبلغ"), max_digits=15, decimal_places=2)
     transaction_type = models.CharField(_("نوع العملية"), max_length=25, choices=TRANSACTION_TYPE_CHOICES)
@@ -236,35 +242,39 @@ class ContactTransaction(models.Model):
                 self.transaction_type = self.SALE_RETURN_INVOICE
             elif self.invoice.invoice_type == 'purchase_return':
                 self.transaction_type = self.PURCHASE_RETURN_INVOICE
+            elif self.invoice.invoice_type == 'damaged':
+                self.transaction_type = self.DAMAGED
 
     @staticmethod
     def recalculate_balances(contact):
         """
         إعادة حساب أرصدة جميع حركات الحساب لجهة اتصال معينة من البداية
+        تدعم النوع "كليهما" عبر تتبع رصيدين منفصلين
         """
         from django.db import transaction
 
         with transaction.atomic():
             # الحصول على جميع حركات الحساب لجهة الاتصال مرتبة حسب التاريخ
-            transactions = ContactTransaction.objects.filter(contact=contact).order_by('date')
+            transactions = ContactTransaction.objects.filter(contact=contact).order_by('date', 'id')
 
-            # إعادة تعيين رصيد جهة الاتصال إلى الرصيد الافتتاحي
-            current_balance = contact.initial_balance
+            # البدء بالأرصدة الافتتاحية
+            customer_balance = contact.initial_balance
+            supplier_balance = contact.initial_supplier_balance
 
             # طباعة معلومات تصحيح الأخطاء
-            print(f"إعادة حساب أرصدة {contact.name} - الرصيد الافتتاحي: {current_balance}")
+            print(f"إعادة حساب أرصدة {contact.name} - رصيد عميل افتتاحي: {customer_balance}, رصيد مورد افتتاحي: {supplier_balance}")
 
             # إعادة حساب الأرصدة لكل حركة
             for trans in transactions:
-                # تحديث الرصيد قبل العملية
-                old_balance_before = trans.balance_before
-                old_balance_after = trans.balance_after
+                # تحديد ما إذا كانت الحركة تخص حساب العميل أم المورد
+                is_customer_trans = trans.transaction_type in [
+                    ContactTransaction.SALE_INVOICE,
+                    ContactTransaction.SALE_RETURN_INVOICE,
+                    ContactTransaction.COLLECTION
+                ]
 
-                trans.balance_before = current_balance
-
-                # إعادة حساب الرصيد بعد العملية بناءً على نوع العملية
-                if contact.contact_type == Contact.CUSTOMER:
-                    # العمليات المتعلقة بالعملاء
+                if is_customer_trans:
+                    trans.balance_before = customer_balance
                     if trans.transaction_type == ContactTransaction.SALE_INVOICE:
                         # فاتورة بيع تزيد مديونية العميل
                         trans.balance_after = trans.balance_before + trans.amount
@@ -275,10 +285,13 @@ class ContactTransaction(models.Model):
                         # تحصيل من العميل ينقص مديونيته
                         trans.balance_after = trans.balance_before - trans.amount
                     else:
-                        # أي عملية أخرى لا تؤثر على الرصيد
                         trans.balance_after = trans.balance_before
+                    
+                    # تحديث الرصيد الجاري للعميل للمرة القادمة
+                    customer_balance = trans.balance_after
                 else:
-                    # العمليات المتعلقة بالموردين
+                    # حركة مورد
+                    trans.balance_before = supplier_balance
                     if trans.transaction_type == ContactTransaction.PURCHASE_INVOICE:
                         # فاتورة شراء تزيد الالتزام تجاه المورد
                         trans.balance_after = trans.balance_before + trans.amount
@@ -289,17 +302,10 @@ class ContactTransaction(models.Model):
                         # دفع للمورد ينقص الالتزام تجاهه
                         trans.balance_after = trans.balance_before - trans.amount
                     else:
-                        # أي عملية أخرى لا تؤثر على الرصيد
                         trans.balance_after = trans.balance_before
-
-                # طباعة معلومات تصحيح الأخطاء
-                print(f"العملية: {trans.get_transaction_type_display()} - المبلغ: {trans.amount}")
-                print(f"الرصيد قبل (قديم): {old_balance_before} - الرصيد بعد (قديم): {old_balance_after}")
-                print(f"الرصيد قبل (جديد): {trans.balance_before} - الرصيد بعد (جديد): {trans.balance_after}")
-                print("---")
-
-                # تحديث الرصيد الحالي للحركة التالية
-                current_balance = trans.balance_after
+                    
+                    # تحديث الرصيد الجاري للمورد للمرة القادمة
+                    supplier_balance = trans.balance_after
 
                 # حفظ التغييرات بدون استدعاء دالة save المخصصة
                 ContactTransaction.objects.filter(pk=trans.pk).update(
@@ -307,18 +313,14 @@ class ContactTransaction(models.Model):
                     balance_after=trans.balance_after
                 )
 
-            # تحديث رصيد جهة الاتصال النهائي
-            if transactions.exists():
-                contact.current_balance = transactions.last().balance_after
-            else:
-                contact.current_balance = contact.initial_balance
+            # تحديث الأرصدة النهائية في موديل جهة الاتصال
+            contact.current_balance = customer_balance
+            contact.current_supplier_balance = supplier_balance
+            contact.save(update_fields=['current_balance', 'current_supplier_balance'])
+            
+            print(f"تم تحديث أرصدة {contact.name}: عميل={customer_balance}, مورد={supplier_balance}")
 
-            contact.save(update_fields=['current_balance'])
-
-            # طباعة معلومات تصحيح الأخطاء
-            print(f"الرصيد النهائي لـ {contact.name}: {contact.current_balance}")
-
-            return contact.current_balance
+            return customer_balance, supplier_balance
 
     def save(self, *args, **kwargs):
         # تحديد نوع العملية من الفاتورة إذا كانت متوفرة
@@ -353,14 +355,18 @@ class ProductTransaction(models.Model):
     PURCHASE = 'purchase'
     SALE_RETURN = 'sale_return'
     PURCHASE_RETURN = 'purchase_return'
+    DAMAGED = 'damaged'
     ADJUSTMENT = 'adjustment'
+    OPENING_BALANCE = 'opening_balance'
 
     TRANSACTION_TYPE_CHOICES = [
         (SALE, _("بيع")),
         (PURCHASE, _("شراء")),
         (SALE_RETURN, _("مرتجع بيع")),
         (PURCHASE_RETURN, _("مرتجع شراء")),
+        (DAMAGED, _("تالف")),
         (ADJUSTMENT, _("تسوية مخزون")),
+        (OPENING_BALANCE, _("رصيد أول المدة")),
     ]
 
     @property
@@ -482,7 +488,7 @@ class ProductTransaction(models.Model):
 
         with transaction.atomic():
             # الحصول على جميع حركات المنتج مرتبة حسب التاريخ
-            transactions = ProductTransaction.objects.filter(product=product).order_by('date')
+            transactions = ProductTransaction.objects.filter(product=product).order_by('date', 'id')
 
             # إعادة تعيين رصيد المنتج إلى الرصيد الافتتاحي
             current_balance = product.initial_balance
@@ -499,7 +505,7 @@ class ProductTransaction(models.Model):
                 trans.balance_before = current_balance
 
                 # إعادة حساب الرصيد بعد العملية بناءً على نوع العملية
-                if trans.transaction_type in [ProductTransaction.SALE, ProductTransaction.PURCHASE_RETURN]:
+                if trans.transaction_type in [ProductTransaction.SALE, ProductTransaction.PURCHASE_RETURN, ProductTransaction.DAMAGED]:
                     # عمليات تنقص المخزون
                     trans.balance_after = trans.balance_before - trans.base_quantity
                 elif trans.transaction_type == ProductTransaction.ADJUSTMENT:
@@ -686,6 +692,8 @@ class Expense(models.Model):
     bank = models.ForeignKey(Bank, on_delete=models.CASCADE, related_name='expenses',
                            verbose_name=_("البنك"), null=True, blank=True)
     payee = models.CharField(_("المستفيد"), max_length=255)
+    contact = models.ForeignKey(Contact, on_delete=models.PROTECT, related_name='expenses',
+                              verbose_name=_("جهة الاتصال المرتبطة"), null=True, blank=True)
     notes = models.TextField(_("ملاحظات"), blank=True, null=True)
     reference_number = models.CharField(_("الرقم المرجعي"), max_length=50, blank=True, null=True)
     is_posted = models.BooleanField(_("مرحل"), default=True)
@@ -694,6 +702,11 @@ class Expense(models.Model):
     created_transaction = models.OneToOneField(SafeTransaction, on_delete=models.SET_NULL,
                                          null=True, blank=True, related_name='created_by_expense',
                                          verbose_name=_("حركة الخزنة المنشأة"))
+    
+    # المعاملة المالية لجهة الاتصال المرتبطة بهذا المصروف
+    contact_transaction = models.OneToOneField(ContactTransaction, on_delete=models.SET_NULL,
+                                            null=True, blank=True, related_name='expense',
+                                            verbose_name=_("حركة حساب جهة الاتصال"))
 
     class Meta:
         verbose_name = _("مصروف")
@@ -733,23 +746,57 @@ class Expense(models.Model):
             # المصروفات تنقص رصيد الخزنة أو البنك (بالمبلغ الإجمالي)
             balance_after = current_balance - total_with_vat
 
+            description = f"مصروف: {self.category.name} - {self.payee}"
+            if self.contact:
+                description += f" ({self.contact.name})"
+
             safe_transaction = SafeTransaction(
                 safe=self.safe,
                 bank=self.bank,
                 date=self.date,
                 amount=total_with_vat,
                 transaction_type=SafeTransaction.EXPENSE,
-                description=f"مصروف: {self.category.name} - {self.payee}",
+                description=description,
                 reference_number=self.number,
                 balance_before=current_balance,
-                balance_after=balance_after
+                balance_after=balance_after,
+                contact=self.contact
             )
             safe_transaction.save()
             self.created_transaction = safe_transaction
 
+            # إنشاء حركة حساب جهة الاتصال إذا وجدت
+            if self.contact:
+                # في حالة المصروف، نعتبرها "دفع" للمورد
+                # إذا كانت جهة الاتصال "كلاهما"، نستخدم رصيد المورد
+                if self.contact.contact_type == Contact.BOTH:
+                    contact_current_balance = self.contact.current_supplier_balance
+                elif self.contact.contact_type == Contact.SUPPLIER:
+                    contact_current_balance = self.contact.current_supplier_balance
+                else:
+                    contact_current_balance = self.contact.current_balance
+
+                # المبلغ في ContactTransaction للمصروف يكون بالسالب لأنه دفع ينقص المديونية (أو يزيد مديونيتنا لهم كعميل لو كان كذلك)
+                # لكن بالنظر لـ Payment.create_related_transactions، الدفع للمورد ينقص رصيده (الذي هو موجب كالتزام)
+                contact_amount = -total_with_vat
+                
+                contact_trans = ContactTransaction.objects.create(
+                    contact=self.contact,
+                    date=self.date,
+                    amount=total_with_vat, # نستخدم القيمة الموجبة لأن save سيعالجها بناءً على النوع
+                    transaction_type=ContactTransaction.PAYMENT,
+                    description=description,
+                    reference_number=self.number
+                )
+                self.contact_transaction = contact_trans
+
             # إنشاء القيد المحاسبي التلقائي
             expense_acc = self.category.account or settings.default_expense_account
-            if expense_acc and financial_obj.account:
+            
+            # تحديد حساب الطرف الدائن (الخزنة أو البنك)
+            credit_account = financial_obj.account
+            
+            if expense_acc and credit_account:
                 journal_entry = JournalEntry.objects.create(
                     entry_number=f"EXP-{self.number}-{timezone.now().strftime('%Y%m%d%H%M%S')}",
                     date=self.date,
@@ -778,7 +825,7 @@ class Expense(models.Model):
                 # 3. إلى حساب الخزنة أو البنك (الجانب الدائن) - المبلغ الإجمالي
                 JournalItem.objects.create(
                     journal_entry=journal_entry,
-                    account=financial_obj.account,
+                    account=credit_account,
                     credit=total_with_vat,
                     memo=f"صرف نقدي للمصروف {self.number}"
                 )
@@ -787,7 +834,7 @@ class Expense(models.Model):
 
             # تحديث حالة الترحيل
             self.is_posted = True
-            self.save(update_fields=['is_posted', 'created_transaction'])
+            self.save(update_fields=['is_posted', 'created_transaction', 'contact_transaction'])
 
         return True
 
@@ -823,6 +870,8 @@ class Income(models.Model):
     bank = models.ForeignKey(Bank, on_delete=models.CASCADE, related_name='incomes',
                            verbose_name=_("البنك"), null=True, blank=True)
     payer = models.CharField(_("الدافع"), max_length=255)
+    contact = models.ForeignKey(Contact, on_delete=models.SET_NULL, related_name='incomes',
+                              verbose_name=_("جهة الاتصال المرتبطة"), null=True, blank=True)
     notes = models.TextField(_("ملاحظات"), blank=True, null=True)
     reference_number = models.CharField(_("الرقم المرجعي"), max_length=50, blank=True, null=True)
     is_posted = models.BooleanField(_("مرحل"), default=True)
@@ -831,6 +880,11 @@ class Income(models.Model):
     created_transaction = models.OneToOneField(SafeTransaction, on_delete=models.SET_NULL,
                                          null=True, blank=True, related_name='created_by_income',
                                          verbose_name=_("حركة الخزنة المنشأة"))
+    
+    # المعاملة المالية لجهة الاتصال المرتبطة بهذا الإيراد
+    contact_transaction = models.OneToOneField(ContactTransaction, on_delete=models.SET_NULL,
+                                            null=True, blank=True, related_name='income',
+                                            verbose_name=_("حركة حساب جهة الاتصال"))
 
     class Meta:
         verbose_name = _("إيراد")
@@ -870,23 +924,57 @@ class Income(models.Model):
             # الإيرادات تزيد رصيد الخزنة أو البنك (بالمبلغ الإجمالي)
             balance_after = current_balance + total_with_vat
 
+            description = f"إيراد: {self.category.name} - {self.payer}"
+            if self.contact:
+                description += f" ({self.contact.name})"
+
             safe_transaction = SafeTransaction(
                 safe=self.safe,
                 bank=self.bank,
                 date=self.date,
                 amount=total_with_vat,
                 transaction_type=SafeTransaction.INCOME,
-                description=f"إيراد: {self.category.name} - {self.payer}",
+                description=description,
                 reference_number=self.number,
                 balance_before=current_balance,
-                balance_after=balance_after
+                balance_after=balance_after,
+                contact=self.contact
             )
             safe_transaction.save()
             self.created_transaction = safe_transaction
 
+            # إنشاء حركة حساب جهة الاتصال إذا وجدت
+            if self.contact:
+                # في حالة الإيراد، نعتبرها "تحصيل" من العميل
+                # إذا كانت جهة الاتصال "كلاهما"، نستخدم رصيد العميل
+                if self.contact.contact_type == Contact.BOTH:
+                    contact_current_balance = self.contact.current_balance
+                elif self.contact.contact_type == Contact.CUSTOMER:
+                    contact_current_balance = self.contact.current_balance
+                else:
+                    contact_current_balance = self.contact.current_supplier_balance
+
+                # المبلغ في ContactTransaction للإيراد يكون بالموجب لأنه تحصيل ينقص مديونية العميل (أو يزيد مديونيتنا له لو كان مورداً)
+                # في recalculate_balances يتم التعامل مع COLLECTION بطرحه من رصيد العميل
+                contact_amount = total_with_vat
+                
+                contact_trans = ContactTransaction.objects.create(
+                    contact=self.contact,
+                    date=self.date,
+                    amount=total_with_vat,
+                    transaction_type=ContactTransaction.COLLECTION,
+                    description=description,
+                    reference_number=self.number
+                )
+                self.contact_transaction = contact_trans
+
             # إنشاء القيد المحاسبي التلقائي
             income_acc = self.category.account or settings.default_income_account
-            if income_acc and financial_obj.account:
+            
+            # تحديد حساب الطرف المدين (الخزنة أو البنك)
+            debit_account = financial_obj.account
+            
+            if income_acc and debit_account:
                 journal_entry = JournalEntry.objects.create(
                     entry_number=f"INC-{self.number}-{timezone.now().strftime('%Y%m%d%H%M%S')}",
                     date=self.date,
@@ -897,7 +985,7 @@ class Income(models.Model):
                 # 1. من حساب الخزنة أو البنك (الجانب المدين) - المبلغ الإجمالي
                 JournalItem.objects.create(
                     journal_entry=journal_entry,
-                    account=financial_obj.account,
+                    account=debit_account,
                     debit=total_with_vat,
                     memo=f"تحصيل نقدي للإيراد {self.number}"
                 )
@@ -924,7 +1012,7 @@ class Income(models.Model):
 
             # تحديث حالة الترحيل
             self.is_posted = True
-            self.save(update_fields=['is_posted', 'created_transaction'])
+            self.save(update_fields=['is_posted', 'created_transaction', 'contact_transaction'])
 
         return True
 
@@ -1647,3 +1735,88 @@ class StockTransfer(models.Model):
             self.deposit_transaction = deposit
             self.save(update_fields=['withdrawal_transaction', 'deposit_transaction'])
             ProductTransaction.recalculate_balances(self.product)
+
+class OpeningBalance(models.Model):
+    """نموذج رصيد أول المدة"""
+    number = models.CharField(_("رقم المستند"), max_length=50, unique=True, blank=True)
+    date = models.DateTimeField(_("التاريخ"), default=timezone.now)
+    store = models.ForeignKey(Store, on_delete=models.CASCADE, related_name='opening_balances', verbose_name=_("المخزن"))
+    notes = models.TextField(_("ملاحظات"), blank=True, null=True)
+    is_posted = models.BooleanField(_("مرحل"), default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = _("رصيد أول المدة")
+        verbose_name_plural = _("أرصدة أول المدة")
+        ordering = ['-date']
+
+    def __str__(self):
+        return f"رصيد أول المدة - {self.number}"
+
+    def post_opening_balance(self):
+        """ترحيل رصيد أول المدة وتحديث المخزون وأسعار الشراء"""
+        if self.is_posted:
+            return False
+
+        from django.db import transaction
+        from products.models import Product, ProductUnit
+
+        with transaction.atomic():
+            for item in self.items.all():
+                # حساب الكمية بالوحدة الأساسية
+                base_quantity = item.quantity * item.product_unit.conversion_factor
+                
+                # تحديث سعر الشراء إذا تم اختيار ذلك
+                if item.update_purchase_price:
+                    item.product_unit.purchase_price = item.price
+                    item.product_unit.save(update_fields=['purchase_price'])
+
+                # إنشاء حركة المنتج
+                current_balance = item.product.current_balance
+                balance_after = current_balance + base_quantity
+
+                product_transaction = ProductTransaction.objects.create(
+                    product=item.product,
+                    date=self.date,
+                    quantity=item.quantity,
+                    product_unit=item.product_unit,
+                    base_quantity=base_quantity,
+                    transaction_type=ProductTransaction.OPENING_BALANCE,
+                    store=self.store,
+                    description=f"رصيد أول المدة: {self.number}",
+                    reference_number=self.number,
+                    balance_before=current_balance,
+                    balance_after=balance_after
+                )
+
+                # ربط الحركة بالبند
+                item.created_transaction = product_transaction
+                item.save(update_fields=['created_transaction'])
+
+                # تحديث رصيد المنتج
+                item.product.current_balance = balance_after
+                item.product.save(update_fields=['current_balance'])
+
+            self.is_posted = True
+            self.save(update_fields=['is_posted'])
+        return True
+
+class OpeningBalanceItem(models.Model):
+    """بنود رصيد أول المدة"""
+    opening_balance = models.ForeignKey(OpeningBalance, on_delete=models.CASCADE, related_name='items', verbose_name=_("مستند رصيد أول المدة"))
+    product = models.ForeignKey('products.Product', on_delete=models.CASCADE, verbose_name=_("المنتج"))
+    product_unit = models.ForeignKey('products.ProductUnit', on_delete=models.CASCADE, verbose_name=_("الوحدة"))
+    quantity = models.DecimalField(_("الكمية"), max_digits=15, decimal_places=3)
+    price = models.DecimalField(_("السعر"), max_digits=15, decimal_places=2)
+    update_purchase_price = models.BooleanField(_("تحديث سعر الشراء"), default=False)
+    
+    # حركة المنتج المرتبطة
+    created_transaction = models.OneToOneField(ProductTransaction, on_delete=models.SET_NULL, null=True, blank=True, related_name='opening_balance_item')
+
+    class Meta:
+        verbose_name = _("بند رصيد أول المدة")
+        verbose_name_plural = _("بنود رصيد أول المدة")
+
+    def __str__(self):
+        return f"{self.product.name} - {self.quantity} {self.product_unit.unit.name}"

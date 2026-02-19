@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="card shadow mb-4">
+        <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+            <h6 class="m-0 font-weight-bold text-primary">{{ title }}</h6>
+            <div>
+                <button onclick="window.print()" class="btn btn-sm btn-secondary">
+                    <i class="fas fa-print"></i> {% trans "طباعة" %}
+                </button>
+                <a href="{% url 'accounting:report_center' %}" class="btn btn-sm btn-outline-primary ms-2">
+                    <i class="fas fa-arrow-right"></i> {% trans "العودة لمركز التقارير" %}
+                </a>
+            </div>
+        </div>
+        <div class="card-body">
+            <form method="get" class="mb-4 no-print">
+                <div class="row align-items-end">
+                    <div class="col-md-4">
+                        <label>{% trans "من تاريخ" %}</label>
+                        <input type="date" name="start_date" value="{{ start_date }}" class="form-control">
+                    </div>
+                    <div class="col-md-4">
+                        <label>{% trans "إلى تاريخ" %}</label>
+                        <input type="date" name="end_date" value="{{ end_date }}" class="form-control">
+                    </div>
+                    <div class="col-md-4">
+                        <button type="submit" class="btn btn-primary">{% trans "تحديث" %}</button>
+                    </div>
+                </div>
+            </form>
+
+            <div class="row">
+                <!-- ملخص المبيعات -->
+                <div class="col-md-6 mb-4">
+                    <div class="card border-left-success shadow h-100 py-2">
+                        <div class="card-body">
+                            <div class="row no-gutters align-items-center">
+                                <div class="col mr-2">
+                                    <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                                        {% trans "إجمالي المبيعات (المرحلة)" %}</div>
+                                    <div class="h5 mb-0 font-weight-bold text-gray-800">{{ report.sales.total_net|default:"0.00" }}</div>
+                                </div>
+                                <div class="col-auto">
+                                    <i class="fas fa-shopping-cart fa-2x text-gray-300"></i>
+                                </div>
+                            </div>
+                            <hr>
+                            <div class="row text-center">
+                                <div class="col-4">
+                                    <div class="text-xs font-weight-bold text-primary">{% trans "المحصل" %}</div>
+                                    <div class="small font-weight-bold">{{ report.sales.total_paid|default:"0.00" }}</div>
+                                </div>
+                                <div class="col-4">
+                                    <div class="text-xs font-weight-bold text-danger">{% trans "المتبقي" %}</div>
+                                    <div class="small font-weight-bold">{{ report.sales.total_remaining|default:"0.00" }}</div>
+                                </div>
+                                <div class="col-4">
+                                    <div class="text-xs font-weight-bold text-info">{% trans "الضريبة" %}</div>
+                                    <div class="small font-weight-bold">{{ report.sales.total_vat|default:"0.00" }}</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ملخص المشتريات -->
+                <div class="col-md-6 mb-4">
+                    <div class="card border-left-danger shadow h-100 py-2">
+                        <div class="card-body">
+                            <div class="row no-gutters align-items-center">
+                                <div class="col mr-2">
+                                    <div class="text-xs font-weight-bold text-danger text-uppercase mb-1">
+                                        {% trans "إجمالي المشتريات (المرحلة)" %}</div>
+                                    <div class="h5 mb-0 font-weight-bold text-gray-800">{{ report.purchases.total_net|default:"0.00" }}</div>
+                                </div>
+                                <div class="col-auto">
+                                    <i class="fas fa-truck fa-2x text-gray-300"></i>
+                                </div>
+                            </div>
+                            <hr>
+                            <div class="row text-center">
+                                <div class="col-4">
+                                    <div class="text-xs font-weight-bold text-primary">{% trans "المدفوع" %}</div>
+                                    <div class="small font-weight-bold">{{ report.purchases.total_paid|default:"0.00" }}</div>
+                                </div>
+                                <div class="col-4">
+                                    <div class="text-xs font-weight-bold text-danger">{% trans "المتبقي" %}</div>
+                                    <div class="small font-weight-bold">{{ report.purchases.total_remaining|default:"0.00" }}</div>
+                                </div>
+                                <div class="col-4">
+                                    <div class="text-xs font-weight-bold text-info">{% trans "الضريبة" %}</div>
+                                    <div class="small font-weight-bold">{{ report.purchases.total_vat|default:"0.00" }}</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="alert alert-info mt-3">
+                <i class="fas fa-info-circle me-2"></i>
+                {% trans "هذا التقرير يشمل الفواتير المرحلة (Posted) فقط." %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+@media print {
+    .no-print { display: none !important; }
+    .card { border: none !important; box-shadow: none !important; }
+}
+.border-left-success { border-left: 0.25rem solid #1cc88a !important; }
+.border-left-danger { border-left: 0.25rem solid #e74a3b !important; }
+</style>
+{% endblock %}

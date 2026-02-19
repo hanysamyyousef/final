@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from './api';
 import { 
   Plus, 
@@ -9,6 +10,7 @@ import {
   Trash2, 
   MoreVertical,
   ChevronRight,
+  Eye,
   LayoutGrid,
   List as ListIcon,
   Tag,
@@ -17,23 +19,71 @@ import {
   Info,
   X,
   Save,
-  Ruler
+  Ruler,
+  AlertTriangle
 } from 'lucide-react';
 
 const Products = () => {
+  const navigate = useNavigate();
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [units, setUnits] = useState([]);
+  const [customFields, setCustomFields] = useState([]);
   const [stores, setStores] = useState([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState('grid');
   const [searchTerm, setSearchTerm] = useState('');
-  const [activeTab, setActiveTab] = useState('products'); // 'products', 'categories', 'units'
+  const [activeTab, setActiveTab] = useState('products'); // 'products', 'categories', 'units', 'custom_fields'
+
+  // DLP States
+  const [isDirty, setIsDirty] = useState(false);
+  const [showExitConfirm, setShowExitConfirm] = useState(false);
+  const [pendingCloseAction, setPendingCloseAction] = useState(null);
+
+  const markDirty = () => setIsDirty(true);
+
+  const handleSafeCloseModal = (modalSetter, formResetter = null) => {
+    if (isDirty) {
+      setPendingCloseAction(() => () => {
+        modalSetter(false);
+        if (formResetter) formResetter();
+        setIsDirty(false);
+        setEditingItem(null);
+      });
+      setShowExitConfirm(true);
+    } else {
+      modalSetter(false);
+      if (formResetter) formResetter();
+      setEditingItem(null);
+    }
+  };
+
+  const confirmExit = () => {
+    if (pendingCloseAction) {
+      pendingCloseAction();
+      setPendingCloseAction(null);
+    }
+    setShowExitConfirm(false);
+    setIsDirty(false);
+  };
+
+  // Browser tab closure protection
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      if (isDirty) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [isDirty]);
 
   // Modals state
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [isUnitModalOpen, setIsUnitModalOpen] = useState(false);
+  const [isCustomFieldModalOpen, setIsCustomFieldModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
 
   // Form states
@@ -60,19 +110,26 @@ const Products = () => {
     symbol: ''
   });
 
+  const [customFieldForm, setCustomFieldForm] = useState({
+    name: '',
+    is_active: true
+  });
+
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [productsRes, categoriesRes, unitsRes, storesRes] = await Promise.all([
+      const [productsRes, categoriesRes, unitsRes, storesRes, customFieldsRes] = await Promise.all([
         api.get('/products/api/products/'),
         api.get('/products/api/categories/'),
         api.get('/products/api/units/'),
-        api.get('/api/stores/')
+        api.get('/api/stores/'),
+        api.get('/products/api/custom-fields/')
       ]);
       setProducts(productsRes.data);
       setCategories(categoriesRes.data);
       setUnits(unitsRes.data);
       setStores(storesRes.data);
+      setCustomFields(customFieldsRes.data);
     } catch (err) {
       console.error('Error fetching data:', err);
     } finally {
@@ -102,6 +159,7 @@ const Products = () => {
       setIsProductModalOpen(false);
       setEditingItem(null);
       setProductForm({ name: '', code: '', barcode: '', category: '', default_store: '', initial_balance: 0, description: '', is_active: true, units_data: [{ unit: '', conversion_factor: 1, purchase_price: 0, selling_price: 0, barcode: '', is_default_purchase: true, is_default_sale: true }] });
+      setIsDirty(false);
       fetchData();
     } catch (err) {
       console.error('Error saving product:', err);
@@ -124,6 +182,7 @@ const Products = () => {
       setIsCategoryModalOpen(false);
       setEditingItem(null);
       setCategoryForm({ name: '', parent: '', description: '' });
+      setIsDirty(false);
       fetchData();
     } catch (err) {
       console.error('Error saving category:', err);
@@ -143,11 +202,32 @@ const Products = () => {
       setIsUnitModalOpen(false);
       setEditingItem(null);
       setUnitForm({ name: '', symbol: '' });
+      setIsDirty(false);
       fetchData();
     } catch (err) {
       console.error('Error saving unit:', err);
       const errorMsg = err.response?.data ? JSON.stringify(err.response.data) : err.message;
       alert('حدث خطأ أثناء حفظ الوحدة: ' + errorMsg);
+    }
+  };
+
+  const handleCustomFieldSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      if (editingItem) {
+        await api.patch(`/products/api/custom-fields/${editingItem.id}/`, customFieldForm);
+      } else {
+        await api.post('/products/api/custom-fields/', customFieldForm);
+      }
+      setIsCustomFieldModalOpen(false);
+      setEditingItem(null);
+      setCustomFieldForm({ name: '', is_active: true });
+      setIsDirty(false);
+      fetchData();
+    } catch (err) {
+      console.error('Error saving custom field:', err);
+      const errorMsg = err.response?.data ? JSON.stringify(err.response.data) : err.message;
+      alert('حدث خطأ أثناء حفظ الحقل المخصص: ' + errorMsg);
     }
   };
 
@@ -180,6 +260,7 @@ const Products = () => {
     }
     
     setProductForm({ ...productForm, units_data: newUnits });
+    markDirty();
   };
 
   const addUnitRow = () => {
@@ -187,12 +268,14 @@ const Products = () => {
       ...productForm,
       units_data: [...productForm.units_data, { unit: '', conversion_factor: 1, purchase_price: 0, selling_price: 0, barcode: '', is_default_purchase: false, is_default_sale: false }]
     });
+    markDirty();
   };
 
   const removeUnitRow = (index) => {
     if (productForm.units_data.length === 1) return;
     const newUnits = productForm.units_data.filter((_, i) => i !== index);
     setProductForm({ ...productForm, units_data: newUnits });
+    markDirty();
   };
 
   const handleDelete = async (type, id) => {
@@ -202,6 +285,7 @@ const Products = () => {
       if (type === 'product') endpoint = `/products/api/products/${id}/`;
       if (type === 'category') endpoint = `/products/api/categories/${id}/`;
       if (type === 'unit') endpoint = `/products/api/units/${id}/`;
+      if (type === 'custom_field') endpoint = `/products/api/custom-fields/${id}/`;
       
       await api.delete(endpoint);
       fetchData();
@@ -213,6 +297,7 @@ const Products = () => {
 
   const openEditModal = (type, item) => {
     setEditingItem(item);
+    setIsDirty(false);
     if (type === 'product') {
       setProductForm({
         name: item.name,
@@ -247,6 +332,12 @@ const Products = () => {
         symbol: item.symbol || ''
       });
       setIsUnitModalOpen(true);
+    } else if (type === 'custom_field') {
+      setCustomFieldForm({
+        name: item.name,
+        is_active: item.is_active
+      });
+      setIsCustomFieldModalOpen(true);
     }
   };
 
@@ -285,21 +376,24 @@ const Products = () => {
           <button 
             onClick={() => {
               setEditingItem(null);
+              setIsDirty(false);
               if (activeTab === 'products') {
-                setProductForm({ name: '', code: '', barcode: '', category: '', default_store: '', initial_balance: 0, description: '', is_active: true, units_data: [{ unit: '', conversion_factor: 1, purchase_price: 0, selling_price: 0, barcode: '', is_default_purchase: true, is_default_sale: true }] });
-                setIsProductModalOpen(true);
+                navigate('/products/add');
               } else if (activeTab === 'categories') {
                 setCategoryForm({ name: '', parent: '', description: '' });
                 setIsCategoryModalOpen(true);
               } else if (activeTab === 'units') {
                 setUnitForm({ name: '', symbol: '' });
                 setIsUnitModalOpen(true);
+              } else if (activeTab === 'custom_fields') {
+                setCustomFieldForm({ name: '', is_active: true });
+                setIsCustomFieldModalOpen(true);
               }
             }}
             className="bg-blue-600 text-white px-4 py-2 rounded-xl flex items-center gap-2 hover:bg-blue-700 transition shadow-lg shadow-blue-200"
           >
             <Plus size={20} />
-            {activeTab === 'products' ? 'منتج جديد' : activeTab === 'categories' ? 'قسم جديد' : 'وحدة جديدة'}
+            {activeTab === 'products' ? 'منتج جديد' : activeTab === 'categories' ? 'قسم جديد' : activeTab === 'units' ? 'وحدة جديدة' : 'حقل مخصص جديد'}
           </button>
         </div>
       </div>
@@ -332,6 +426,15 @@ const Products = () => {
           وحدات القياس ({units.length})
           {activeTab === 'units' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 rounded-full" />}
         </button>
+        <button
+          onClick={() => setActiveTab('custom_fields')}
+          className={`pb-4 px-2 text-sm font-bold transition-all relative ${
+            activeTab === 'custom_fields' ? 'text-blue-600' : 'text-gray-400 hover:text-gray-600'
+          }`}
+        >
+          الحقول المخصصة ({customFields.length})
+          {activeTab === 'custom_fields' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 rounded-full" />}
+        </button>
       </div>
 
       <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col md:flex-row gap-4 items-center">
@@ -341,7 +444,8 @@ const Products = () => {
             type="text"
             placeholder={
               activeTab === 'products' ? "البحث عن منتج بالاسم أو الكود..." :
-              activeTab === 'categories' ? "البحث عن قسم..." : "البحث عن وحدة قياس..."
+              activeTab === 'categories' ? "البحث عن قسم..." : 
+              activeTab === 'units' ? "البحث عن وحدة قياس..." : "البحث عن حقل مخصص..."
             }
             className="w-full pr-10 pl-4 py-2 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition"
             value={searchTerm}
@@ -371,7 +475,10 @@ const Products = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {filteredProducts.map((product) => (
               <div key={product.id} className="bg-white rounded-2xl border border-gray-100 overflow-hidden hover:shadow-xl hover:shadow-blue-500/5 transition group">
-                <div className="aspect-square bg-gray-50 relative overflow-hidden">
+                <div 
+                  className="aspect-square bg-gray-50 relative overflow-hidden cursor-pointer"
+                  onClick={() => navigate(`/products/view/${product.id}`)}
+                >
                   {product.image ? (
                     <img src={product.image} alt={product.name} className="w-full h-full object-cover group-hover:scale-110 transition duration-500" />
                   ) : (
@@ -387,7 +494,7 @@ const Products = () => {
                 </div>
                 <div className="p-4 space-y-3">
                   <div className="flex justify-between items-start">
-                    <div>
+                    <div className="cursor-pointer flex-1" onClick={() => navigate(`/products/view/${product.id}`)}>
                       <h3 className="font-bold text-gray-800 group-hover:text-blue-600 transition">{product.name}</h3>
                       <p className="text-xs text-gray-400 mt-1 flex items-center gap-1">
                         <Barcode size={12} />
@@ -396,7 +503,7 @@ const Products = () => {
                     </div>
                     <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button 
-                        onClick={() => openEditModal('product', product)}
+                        onClick={() => navigate(`/products/edit/${product.id}`)}
                         className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition"
                       >
                         <Edit2 size={16} />
@@ -431,7 +538,10 @@ const Products = () => {
                         </span>
                       </p>
                     </div>
-                    <button className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 hover:bg-blue-600 hover:text-white transition">
+                    <button 
+                      onClick={() => navigate(`/products/view/${product.id}`)}
+                      className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 hover:bg-blue-600 hover:text-white transition"
+                    >
                       <ChevronRight size={18} />
                     </button>
                   </div>
@@ -456,7 +566,7 @@ const Products = () => {
               <tbody className="divide-y divide-gray-50">
                 {filteredProducts.map((product) => (
                   <tr key={product.id} className="hover:bg-blue-50/30 transition group">
-                    <td className="p-4">
+                    <td className="p-4 cursor-pointer" onClick={() => navigate(`/products/view/${product.id}`)}>
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center text-gray-400">
                           {product.image ? (
@@ -465,7 +575,7 @@ const Products = () => {
                             <Package size={20} />
                           )}
                         </div>
-                        <span className="font-bold text-gray-800">{product.name}</span>
+                        <span className="font-bold text-gray-800 group-hover:text-blue-600 transition">{product.name}</span>
                       </div>
                     </td>
                     <td className="p-4 text-sm text-gray-500">{product.code || '-'}</td>
@@ -483,17 +593,26 @@ const Products = () => {
                         {product.is_active ? 'نشط' : 'متوقف'}
                       </span>
                     </td>
-                    <td className="p-4 text-left">
+                    <td className="p-4">
                       <div className="flex justify-end gap-2">
                         <button 
-                          onClick={() => openEditModal('product', product)}
+                          onClick={() => navigate(`/products/view/${product.id}`)}
+                          className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition"
+                          title="عرض"
+                        >
+                          <Eye size={16} />
+                        </button>
+                        <button 
+                          onClick={() => navigate(`/products/edit/${product.id}`)}
                           className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition"
+                          title="تعديل"
                         >
                           <Edit2 size={16} />
                         </button>
                         <button 
                           onClick={() => handleDelete('product', product.id)}
                           className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition"
+                          title="حذف"
                         >
                           <Trash2 size={16} />
                         </button>
@@ -532,6 +651,46 @@ const Products = () => {
                       </button>
                       <button 
                         onClick={() => handleDelete('category', cat.id)}
+                        className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : activeTab === 'custom_fields' ? (
+        <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
+          <table className="w-full text-right border-collapse">
+            <thead>
+              <tr className="bg-gray-50 border-b border-gray-100">
+                <th className="p-4 font-bold text-gray-600 text-sm">اسم الحقل</th>
+                <th className="p-4 font-bold text-gray-600 text-sm text-center">الحالة</th>
+                <th className="p-4"></th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {customFields.filter(f => f.name.toLowerCase().includes(searchTerm.toLowerCase())).map((field) => (
+                <tr key={field.id} className="hover:bg-blue-50/30 transition group">
+                  <td className="p-4 font-bold text-gray-800">{field.name}</td>
+                  <td className="p-4 text-center">
+                    <span className={`px-2 py-1 rounded-lg text-[10px] font-bold ${field.is_active ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
+                      {field.is_active ? 'نشط' : 'متوقف'}
+                    </span>
+                  </td>
+                  <td className="p-4 text-left">
+                    <div className="flex justify-end gap-2">
+                      <button 
+                        onClick={() => openEditModal('custom_field', field)}
+                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition"
+                      >
+                        <Edit2 size={16} />
+                      </button>
+                      <button 
+                        onClick={() => handleDelete('custom_field', field.id)}
                         className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition"
                       >
                         <Trash2 size={16} />
@@ -584,11 +743,11 @@ const Products = () => {
       {/* Product Modal */}
       {isProductModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="fixed inset-0 bg-gray-900/50 backdrop-blur-sm" onClick={() => setIsProductModalOpen(false)}></div>
+          <div className="fixed inset-0 bg-gray-900/50 backdrop-blur-sm" onClick={() => handleSafeCloseModal(setIsProductModalOpen)}></div>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl z-10 overflow-hidden animate-in fade-in zoom-in duration-200">
             <div className="flex items-center justify-between p-6 border-b border-gray-100">
               <h2 className="text-xl font-bold text-gray-800">{editingItem ? 'تعديل منتج' : 'إضافة منتج جديد'}</h2>
-              <button onClick={() => setIsProductModalOpen(false)} className="text-gray-400 hover:text-gray-600">
+              <button onClick={() => handleSafeCloseModal(setIsProductModalOpen)} className="text-gray-400 hover:text-gray-600">
                 <X size={24} />
               </button>
             </div>
@@ -600,7 +759,10 @@ const Products = () => {
                   required
                   className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition"
                   value={productForm.name}
-                  onChange={(e) => setProductForm({...productForm, name: e.target.value})}
+                  onChange={(e) => {
+                    setProductForm({...productForm, name: e.target.value});
+                    markDirty();
+                  }}
                 />
               </div>
               <div>
@@ -609,7 +771,10 @@ const Products = () => {
                   type="text"
                   className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition"
                   value={productForm.code}
-                  onChange={(e) => setProductForm({...productForm, code: e.target.value})}
+                  onChange={(e) => {
+                    setProductForm({...productForm, code: e.target.value});
+                    markDirty();
+                  }}
                 />
               </div>
               <div>
@@ -618,7 +783,10 @@ const Products = () => {
                   type="text"
                   className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition"
                   value={productForm.barcode}
-                  onChange={(e) => setProductForm({...productForm, barcode: e.target.value})}
+                  onChange={(e) => {
+                    setProductForm({...productForm, barcode: e.target.value});
+                    markDirty();
+                  }}
                 />
               </div>
               <div>
@@ -626,7 +794,10 @@ const Products = () => {
                 <select
                   className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition"
                   value={productForm.category}
-                  onChange={(e) => setProductForm({...productForm, category: e.target.value})}
+                  onChange={(e) => {
+                    setProductForm({...productForm, category: e.target.value});
+                    markDirty();
+                  }}
                 >
                   <option value="">اختر القسم</option>
                   {categories.map(cat => (
@@ -639,7 +810,10 @@ const Products = () => {
                 <select
                   className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition"
                   value={productForm.default_store}
-                  onChange={(e) => setProductForm({...productForm, default_store: e.target.value})}
+                  onChange={(e) => {
+                    setProductForm({...productForm, default_store: e.target.value});
+                    markDirty();
+                  }}
                 >
                   <option value="">اختر المخزن</option>
                   {stores.map(store => (
@@ -654,7 +828,10 @@ const Products = () => {
                   step="0.001"
                   className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition"
                   value={productForm.initial_balance}
-                  onChange={(e) => setProductForm({...productForm, initial_balance: e.target.value})}
+                  onChange={(e) => {
+                    setProductForm({...productForm, initial_balance: e.target.value});
+                    markDirty();
+                  }}
                 />
               </div>
               <div className="md:col-span-2 mt-4">
@@ -777,7 +954,10 @@ const Products = () => {
                 <textarea
                   className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition h-20"
                   value={productForm.description}
-                  onChange={(e) => setProductForm({...productForm, description: e.target.value})}
+                  onChange={(e) => {
+                    setProductForm({...productForm, description: e.target.value});
+                    markDirty();
+                  }}
                 ></textarea>
               </div>
               <div className="flex items-center gap-2">
@@ -786,7 +966,10 @@ const Products = () => {
                   id="is_active"
                   className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
                   checked={productForm.is_active}
-                  onChange={(e) => setProductForm({...productForm, is_active: e.target.checked})}
+                  onChange={(e) => {
+                    setProductForm({...productForm, is_active: e.target.checked});
+                    markDirty();
+                  }}
                 />
                 <label htmlFor="is_active" className="text-sm font-medium text-gray-700">منتج نشط</label>
               </div>
@@ -795,7 +978,7 @@ const Products = () => {
                   <Save size={20} />
                   {editingItem ? 'تحديث المنتج' : 'حفظ المنتج'}
                 </button>
-                <button type="button" onClick={() => setIsProductModalOpen(false)} className="flex-1 bg-gray-100 text-gray-600 py-3 rounded-xl font-bold hover:bg-gray-200 transition">
+                <button type="button" onClick={() => handleSafeCloseModal(setIsProductModalOpen)} className="flex-1 bg-gray-100 text-gray-600 py-3 rounded-xl font-bold hover:bg-gray-200 transition">
                   إلغاء
                 </button>
               </div>
@@ -807,11 +990,11 @@ const Products = () => {
       {/* Category Modal */}
       {isCategoryModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="fixed inset-0 bg-gray-900/50 backdrop-blur-sm" onClick={() => setIsCategoryModalOpen(false)}></div>
+          <div className="fixed inset-0 bg-gray-900/50 backdrop-blur-sm" onClick={() => handleSafeCloseModal(setIsCategoryModalOpen)}></div>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg z-10 overflow-hidden animate-in fade-in zoom-in duration-200">
             <div className="flex items-center justify-between p-6 border-b border-gray-100">
               <h2 className="text-xl font-bold text-gray-800">{editingItem ? 'تعديل قسم' : 'إضافة قسم جديد'}</h2>
-              <button onClick={() => setIsCategoryModalOpen(false)} className="text-gray-400 hover:text-gray-600">
+              <button onClick={() => handleSafeCloseModal(setIsCategoryModalOpen)} className="text-gray-400 hover:text-gray-600">
                 <X size={24} />
               </button>
             </div>
@@ -823,7 +1006,10 @@ const Products = () => {
                   required
                   className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition"
                   value={categoryForm.name}
-                  onChange={(e) => setCategoryForm({...categoryForm, name: e.target.value})}
+                  onChange={(e) => {
+                    setCategoryForm({...categoryForm, name: e.target.value});
+                    markDirty();
+                  }}
                 />
               </div>
               <div>
@@ -831,7 +1017,10 @@ const Products = () => {
                 <select
                   className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition"
                   value={categoryForm.parent}
-                  onChange={(e) => setCategoryForm({...categoryForm, parent: e.target.value})}
+                  onChange={(e) => {
+                    setCategoryForm({...categoryForm, parent: e.target.value});
+                    markDirty();
+                  }}
                 >
                   <option value="">لا يوجد (قسم رئيسي)</option>
                   {categories.filter(c => c.id !== editingItem?.id).map(cat => (
@@ -844,7 +1033,10 @@ const Products = () => {
                 <textarea
                   className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition h-20"
                   value={categoryForm.description}
-                  onChange={(e) => setCategoryForm({...categoryForm, description: e.target.value})}
+                  onChange={(e) => {
+                    setCategoryForm({...categoryForm, description: e.target.value});
+                    markDirty();
+                  }}
                 ></textarea>
               </div>
               <div className="flex gap-3 mt-6">
@@ -852,7 +1044,7 @@ const Products = () => {
                   <Save size={20} />
                   {editingItem ? 'تحديث القسم' : 'حفظ القسم'}
                 </button>
-                <button type="button" onClick={() => setIsCategoryModalOpen(false)} className="flex-1 bg-gray-100 text-gray-600 py-3 rounded-xl font-bold hover:bg-gray-200 transition">
+                <button type="button" onClick={() => handleSafeCloseModal(setIsCategoryModalOpen)} className="flex-1 bg-gray-100 text-gray-600 py-3 rounded-xl font-bold hover:bg-gray-200 transition">
                   إلغاء
                 </button>
               </div>
@@ -864,11 +1056,11 @@ const Products = () => {
       {/* Unit Modal */}
       {isUnitModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="fixed inset-0 bg-gray-900/50 backdrop-blur-sm" onClick={() => setIsUnitModalOpen(false)}></div>
+          <div className="fixed inset-0 bg-gray-900/50 backdrop-blur-sm" onClick={() => handleSafeCloseModal(setIsUnitModalOpen)}></div>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg z-10 overflow-hidden animate-in fade-in zoom-in duration-200">
             <div className="flex items-center justify-between p-6 border-b border-gray-100">
               <h2 className="text-xl font-bold text-gray-800">{editingItem ? 'تعديل وحدة' : 'إضافة وحدة جديدة'}</h2>
-              <button onClick={() => setIsUnitModalOpen(false)} className="text-gray-400 hover:text-gray-600">
+              <button onClick={() => handleSafeCloseModal(setIsUnitModalOpen)} className="text-gray-400 hover:text-gray-600">
                 <X size={24} />
               </button>
             </div>
@@ -881,7 +1073,10 @@ const Products = () => {
                   placeholder="مثال: قطعة، كجم، متر"
                   className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition"
                   value={unitForm.name}
-                  onChange={(e) => setUnitForm({...unitForm, name: e.target.value})}
+                  onChange={(e) => {
+                    setUnitForm({...unitForm, name: e.target.value});
+                    markDirty();
+                  }}
                 />
               </div>
               <div>
@@ -892,7 +1087,10 @@ const Products = () => {
                   placeholder="مثال: pcs, kg, m"
                   className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition"
                   value={unitForm.symbol}
-                  onChange={(e) => setUnitForm({...unitForm, symbol: e.target.value})}
+                  onChange={(e) => {
+                    setUnitForm({...unitForm, symbol: e.target.value});
+                    markDirty();
+                  }}
                 />
               </div>
               <div className="flex gap-3 mt-6">
@@ -900,11 +1098,94 @@ const Products = () => {
                   <Save size={20} />
                   {editingItem ? 'تحديث الوحدة' : 'حفظ الوحدة'}
                 </button>
-                <button type="button" onClick={() => setIsUnitModalOpen(false)} className="flex-1 bg-gray-100 text-gray-600 py-3 rounded-xl font-bold hover:bg-gray-200 transition">
+                <button type="button" onClick={() => handleSafeCloseModal(setIsUnitModalOpen)} className="flex-1 bg-gray-100 text-gray-600 py-3 rounded-xl font-bold hover:bg-gray-200 transition">
                   إلغاء
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Custom Field Modal */}
+      {isCustomFieldModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-gray-900/50 backdrop-blur-sm" onClick={() => handleSafeCloseModal(setIsCustomFieldModalOpen)}></div>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg z-10 overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div className="flex items-center justify-between p-6 border-b border-gray-100">
+              <h2 className="text-xl font-bold text-gray-800">{editingItem ? 'تعديل حقل مخصص' : 'إضافة حقل مخصص جديد'}</h2>
+              <button onClick={() => handleSafeCloseModal(setIsCustomFieldModalOpen)} className="text-gray-400 hover:text-gray-600">
+                <X size={24} />
+              </button>
+            </div>
+            <form onSubmit={handleCustomFieldSubmit} className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">اسم الحقل *</label>
+                <input
+                  type="text"
+                  required
+                  className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition"
+                  value={customFieldForm.name}
+                  onChange={(e) => {
+                    setCustomFieldForm({...customFieldForm, name: e.target.value});
+                    markDirty();
+                  }}
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="field_is_active"
+                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  checked={customFieldForm.is_active}
+                  onChange={(e) => {
+                    setCustomFieldForm({...customFieldForm, is_active: e.target.checked});
+                    markDirty();
+                  }}
+                />
+                <label htmlFor="field_is_active" className="text-sm font-medium text-gray-700">نشط</label>
+              </div>
+              <div className="flex gap-3 mt-6">
+                <button type="submit" className="flex-1 bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 transition flex items-center justify-center gap-2">
+                  <Save size={20} />
+                  {editingItem ? 'تحديث' : 'حفظ'}
+                </button>
+                <button type="button" onClick={() => handleSafeCloseModal(setIsCustomFieldModalOpen)} className="flex-1 bg-gray-100 text-gray-600 py-3 rounded-xl font-bold hover:bg-gray-200 transition">
+                  إلغاء
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Exit Confirmation Modal */}
+      {showExitConfirm && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-white rounded-[2rem] w-full max-w-md shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div className="p-8 text-center">
+              <div className="w-20 h-20 bg-amber-50 rounded-full flex items-center justify-center mx-auto mb-6">
+                <AlertTriangle size={40} className="text-amber-500" />
+              </div>
+              <h3 className="text-2xl font-black text-gray-900 mb-4">تنبيه: تغييرات غير محفوظة</h3>
+              <p className="text-gray-600 font-bold mb-8 leading-relaxed">
+                لديك تغييرات لم يتم حفظها. هل أنت متأكد من رغبتك في الخروج؟ سيتم فقدان جميع التغييرات.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={confirmExit}
+                  className="flex-1 bg-red-600 hover:bg-red-700 text-white py-4 rounded-2xl font-black transition-all"
+                >
+                  خروج بدون حفظ
+                </button>
+                <button
+                  onClick={() => setShowExitConfirm(false)}
+                  className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-600 py-4 rounded-2xl font-black transition-all"
+                >
+                  البقاء
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

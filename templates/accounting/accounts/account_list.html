@@ -1,0 +1,86 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block content %}
+<div class="p-6 space-y-6">
+    <header class="flex justify-between items-center">
+        <div>
+            <h1 class="text-2xl font-black text-gray-800">{{ title }}</h1>
+            <p class="text-gray-500">إدارة شجرة الحسابات المالية وتصنيفاتها</p>
+        </div>
+        <a href="{% url 'accounting:account_create' %}" class="flex items-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-2xl font-black shadow-lg shadow-blue-100 hover:bg-blue-700 transition-all">
+            <i class="fas fa-plus"></i>
+            <span>إضافة حساب جديد</span>
+        </a>
+    </header>
+
+    <div class="bg-white rounded-[2.5rem] border border-gray-100 shadow-sm overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full text-right border-collapse">
+                <thead>
+                    <tr class="bg-gray-50 text-gray-600 text-sm font-bold border-b">
+                        <th class="p-4">كود الحساب</th>
+                        <th class="p-4">اسم الحساب</th>
+                        <th class="p-4">نوع الحساب</th>
+                        <th class="p-4">قابل للتحديد</th>
+                        <th class="p-4">الرصيد</th>
+                        <th class="p-4">الإجراءات</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for account in accounts %}
+                    <tr class="border-b hover:bg-gray-50 transition-colors">
+                        <td class="p-4 font-mono text-blue-600 font-bold">{{ account.code }}</td>
+                        <td class="p-4">
+                            <div style="margin-right: {{ account.level|add:account.level|add:account.level }}rem" class="flex items-center gap-2">
+                                {% if not account.is_leaf_node %}
+                                <i class="fas fa-folder text-amber-400"></i>
+                                {% else %}
+                                <i class="fas fa-file-invoice-dollar text-gray-400"></i>
+                                {% endif %}
+                                <span class="{% if not account.is_selectable %}font-black text-gray-900{% else %}text-gray-700{% endif %}">
+                                    {{ account.name }}
+                                </span>
+                            </div>
+                        </td>
+                        <td class="p-4">
+                            <span class="px-3 py-1 rounded-lg text-xs font-bold 
+                                {% if account.account_type == 'asset' %}bg-blue-50 text-blue-600
+                                {% elif account.account_type == 'liability' %}bg-rose-50 text-rose-600
+                                {% elif account.account_type == 'equity' %}bg-purple-50 text-purple-600
+                                {% elif account.account_type == 'income' %}bg-green-50 text-green-600
+                                {% else %}bg-amber-50 text-amber-600{% endif %}">
+                                {{ account.get_account_type_display }}
+                            </span>
+                        </td>
+                        <td class="p-4 text-center">
+                            {% if account.is_selectable %}
+                            <i class="fas fa-check-circle text-green-500"></i>
+                            {% else %}
+                            <i class="fas fa-times-circle text-gray-300"></i>
+                            {% endif %}
+                        </td>
+                        <td class="p-4 font-bold text-gray-900">
+                            {{ account.balance|floatformat:2 }}
+                        </td>
+                        <td class="p-4">
+                            <div class="flex items-center gap-2">
+                                <a href="{% url 'accounting:account_update' account.pk %}" class="p-2 hover:bg-blue-50 text-blue-600 rounded-xl transition-colors" title="تعديل">
+                                    <i class="fas fa-edit"></i>
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="p-10 text-center text-gray-400">
+                            لا توجد حسابات مضافة حالياً
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

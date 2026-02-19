@@ -14,7 +14,8 @@ import {
   Package,
   Truck,
   Target,
-  Calculator
+  Calculator,
+  AlertTriangle
 } from 'lucide-react';
 
 const Branches = () => {
@@ -24,6 +25,38 @@ const Branches = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isDirty, setIsDirty] = useState(false);
+  const [showExitConfirm, setShowExitConfirm] = useState(false);
+
+  const markDirty = () => setIsDirty(true);
+
+  const handleSafeCloseModal = () => {
+    if (isDirty) {
+      setShowExitConfirm(true);
+    } else {
+      setIsModalOpen(false);
+      setEditingBranch(null);
+    }
+  };
+
+  const confirmExit = () => {
+    setIsDirty(false);
+    setShowExitConfirm(false);
+    setIsModalOpen(false);
+    setEditingBranch(null);
+  };
+
+  // Handle browser back/close
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      if (isDirty) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [isDirty]);
   const [editingBranch, setEditingBranch] = useState(null);
   const [formData, setFormData] = useState({
     name: '',
@@ -57,6 +90,7 @@ const Branches = () => {
   };
 
   const handleOpenModal = (branch = null) => {
+    setIsDirty(false);
     if (branch) {
       setEditingBranch(branch);
       setFormData({
@@ -87,6 +121,7 @@ const Branches = () => {
       } else {
         await api.post('/core/api/branches/', formData);
       }
+      setIsDirty(false);
       setIsModalOpen(false);
       fetchData();
     } catch (err) {
@@ -377,7 +412,7 @@ const Branches = () => {
                 {editingBranch ? 'تعديل فرع' : 'إضافة فرع جديد'}
               </h3>
               <button 
-                onClick={() => setIsModalOpen(false)}
+                onClick={handleSafeCloseModal}
                 className="p-2 hover:bg-white rounded-xl transition-colors text-gray-400"
               >
                 <X size={24} />
@@ -392,7 +427,10 @@ const Branches = () => {
                     type="text"
                     required
                     value={formData.name}
-                    onChange={(e) => setFormData({...formData, name: e.target.value})}
+                    onChange={(e) => {
+                      setFormData({...formData, name: e.target.value});
+                      markDirty();
+                    }}
                     className="w-full bg-gray-50 border-none rounded-2xl px-4 py-3 text-sm focus:ring-2 ring-blue-500 font-bold"
                     placeholder="مثال: فرع القاهرة الرئيسي"
                   />
@@ -402,7 +440,10 @@ const Branches = () => {
                   <select 
                     required
                     value={formData.company}
-                    onChange={(e) => setFormData({...formData, company: e.target.value})}
+                    onChange={(e) => {
+                      setFormData({...formData, company: e.target.value});
+                      markDirty();
+                    }}
                     className="w-full bg-gray-50 border-none rounded-2xl px-4 py-3 text-sm focus:ring-2 ring-blue-500 font-bold"
                   >
                     <option value="">اختر الشركة...</option>
@@ -419,7 +460,10 @@ const Branches = () => {
                   <input 
                     type="text"
                     value={formData.manager}
-                    onChange={(e) => setFormData({...formData, manager: e.target.value})}
+                    onChange={(e) => {
+                      setFormData({...formData, manager: e.target.value});
+                      markDirty();
+                    }}
                     className="w-full bg-gray-50 border-none rounded-2xl px-4 py-3 text-sm focus:ring-2 ring-blue-500 font-bold"
                   />
                 </div>
@@ -428,7 +472,10 @@ const Branches = () => {
                   <input 
                     type="text"
                     value={formData.phone}
-                    onChange={(e) => setFormData({...formData, phone: e.target.value})}
+                    onChange={(e) => {
+                      setFormData({...formData, phone: e.target.value});
+                      markDirty();
+                    }}
                     className="w-full bg-gray-50 border-none rounded-2xl px-4 py-3 text-sm focus:ring-2 ring-blue-500 font-bold"
                     dir="ltr"
                   />
@@ -439,7 +486,10 @@ const Branches = () => {
                 <label className="text-sm font-black text-gray-600 px-1">العنوان</label>
                 <textarea 
                   value={formData.address}
-                  onChange={(e) => setFormData({...formData, address: e.target.value})}
+                  onChange={(e) => {
+                    setFormData({...formData, address: e.target.value});
+                    markDirty();
+                  }}
                   className="w-full bg-gray-50 border-none rounded-2xl px-4 py-3 text-sm focus:ring-2 ring-blue-500 font-bold h-24"
                 />
               </div>
@@ -454,13 +504,44 @@ const Branches = () => {
                 </button>
                 <button 
                   type="button"
-                  onClick={() => setIsModalOpen(false)}
+                  onClick={handleSafeCloseModal}
                   className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-600 py-4 rounded-2xl font-black transition-all"
                 >
                   إلغاء
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Exit Confirmation Modal */}
+      {showExitConfirm && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-white rounded-[2rem] w-full max-w-md shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div className="p-8 text-center">
+              <div className="w-20 h-20 bg-amber-50 rounded-full flex items-center justify-center mx-auto mb-6">
+                <AlertTriangle size={40} className="text-amber-500" />
+              </div>
+              <h3 className="text-2xl font-black text-gray-900 mb-4">تنبيه: تغييرات غير محفوظة</h3>
+              <p className="text-gray-600 font-bold mb-8 leading-relaxed">
+                لديك تغييرات لم يتم حفظها. هل أنت متأكد من رغبتك في الخروج؟ سيتم فقدان جميع التغييرات.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={confirmExit}
+                  className="flex-1 bg-red-600 hover:bg-red-700 text-white py-4 rounded-2xl font-black transition-all"
+                >
+                  خروج بدون حفظ
+                </button>
+                <button
+                  onClick={() => setShowExitConfirm(false)}
+                  className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-600 py-4 rounded-2xl font-black transition-all"
+                >
+                  البقاء
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

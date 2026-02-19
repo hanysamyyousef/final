@@ -28,7 +28,8 @@ import {
   CheckCircle,
   PlusCircle,
   History,
-  ShieldCheck
+  ShieldCheck,
+  AlertTriangle
 } from 'lucide-react';
 
 const Employees = () => {
@@ -42,6 +43,56 @@ const Employees = () => {
   const [activeTab, setActiveTab] = useState(sub === 'attendance' ? 'attendance' : sub === 'salaries' ? 'salaries' : 'employees');
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+
+  // DLP States
+  const [isDirty, setIsDirty] = useState(false);
+  const [showExitConfirm, setShowExitConfirm] = useState(false);
+  const [pendingCloseAction, setPendingCloseAction] = useState(null);
+
+  const markDirty = () => setIsDirty(true);
+
+  const handleSafeCloseModal = (modalSetter, formResetter = null) => {
+    if (isDirty) {
+      setPendingCloseAction(() => () => {
+        modalSetter(false);
+        if (formResetter) formResetter();
+        setIsDirty(false);
+        setEditingEmployee(null);
+        setEditingAttendance(null);
+        setEditingLoan(null);
+        setEditingSalary(null);
+      });
+      setShowExitConfirm(true);
+    } else {
+      modalSetter(false);
+      if (formResetter) formResetter();
+      setEditingEmployee(null);
+      setEditingAttendance(null);
+      setEditingLoan(null);
+      setEditingSalary(null);
+    }
+  };
+
+  const confirmExit = () => {
+    if (pendingCloseAction) {
+      pendingCloseAction();
+      setPendingCloseAction(null);
+    }
+    setShowExitConfirm(false);
+    setIsDirty(false);
+  };
+
+  // Browser tab closure protection
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      if (isDirty) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [isDirty]);
 
   useEffect(() => {
     if (sub) {
@@ -147,6 +198,7 @@ const Employees = () => {
   }, []);
 
   const handleOpenModal = (employee = null) => {
+    setIsDirty(false);
     if (employee) {
       setEditingEmployee(employee);
       setFormData({
@@ -161,6 +213,8 @@ const Employees = () => {
         status: employee.status || 'active',
         notes: employee.notes || ''
       });
+      // Ensure dirty state is false after loading data
+      setTimeout(() => setIsDirty(false), 0);
     } else {
       setEditingEmployee(null);
       setFormData({
@@ -175,11 +229,14 @@ const Employees = () => {
         status: 'active',
         notes: ''
       });
+      // Ensure dirty state is false after loading data
+      setTimeout(() => setIsDirty(false), 0);
     }
     setIsModalOpen(true);
   };
 
   const handleOpenAttendanceModal = (attendance = null) => {
+    setIsDirty(false);
     if (attendance) {
       setEditingAttendance(attendance);
       setAttendanceFormData({
@@ -190,6 +247,8 @@ const Employees = () => {
         check_out: attendance.check_out || '17:00',
         notes: attendance.notes || ''
       });
+      // Ensure dirty state is false after loading data
+      setTimeout(() => setIsDirty(false), 0);
     } else {
       setEditingAttendance(null);
       setAttendanceFormData({
@@ -200,11 +259,14 @@ const Employees = () => {
         check_out: '17:00',
         notes: ''
       });
+      // Ensure dirty state is false after loading data
+      setTimeout(() => setIsDirty(false), 0);
     }
     setIsAttendanceModalOpen(true);
   };
 
   const handleOpenBulkAttendanceModal = () => {
+    setIsDirty(false);
     const activeEmployees = employees.filter(emp => emp.status === 'active');
     setBulkAttendanceData({
       date: new Date().toISOString().split('T')[0],
@@ -217,13 +279,16 @@ const Employees = () => {
         notes: ''
       }))
     });
+    // Ensure dirty state is false after loading data
+    setTimeout(() => setIsDirty(false), 0);
     setIsBulkAttendanceModalOpen(true);
   };
 
   const handleSaveBulkAttendance = async (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
     try {
       await api.post('/employees/api/attendance/bulk_add/', bulkAttendanceData);
+      setIsDirty(false);
       setIsBulkAttendanceModalOpen(false);
       fetchData();
     } catch (err) {
@@ -233,6 +298,7 @@ const Employees = () => {
   };
 
   const handleOpenLoanModal = (loan = null) => {
+    setIsDirty(false);
     if (loan) {
       setEditingLoan(loan);
       setLoanFormData({
@@ -242,6 +308,8 @@ const Employees = () => {
         description: loan.description || '',
         safe: loan.safe || ''
       });
+      // Ensure dirty state is false after loading data
+      setTimeout(() => setIsDirty(false), 0);
     } else {
       setEditingLoan(null);
       setLoanFormData({
@@ -251,11 +319,14 @@ const Employees = () => {
         description: '',
         safe: safes[0]?.id || ''
       });
+      // Ensure dirty state is false after loading data
+      setTimeout(() => setIsDirty(false), 0);
     }
     setIsLoanModalOpen(true);
   };
 
   const handleOpenSalaryModal = (salary = null) => {
+    setIsDirty(false);
     if (salary) {
       setEditingSalary(salary);
       setSalaryFormData({
@@ -268,6 +339,8 @@ const Employees = () => {
         safe: salary.safe || '',
         notes: salary.notes || ''
       });
+      // Ensure dirty state is false after loading data
+      setTimeout(() => setIsDirty(false), 0);
     } else {
       setEditingSalary(null);
       setSalaryFormData({
@@ -280,18 +353,21 @@ const Employees = () => {
         safe: safes[0]?.id || '',
         notes: ''
       });
+      // Ensure dirty state is false after loading data
+      setTimeout(() => setIsDirty(false), 0);
     }
     setIsSalaryModalOpen(true);
   };
 
   const handleSave = async (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
     try {
       if (editingEmployee) {
         await api.put(`/employees/api/employees/${editingEmployee.id}/`, formData);
       } else {
         await api.post('/employees/api/employees/', formData);
       }
+      setIsDirty(false);
       setIsModalOpen(false);
       fetchData();
     } catch (err) {
@@ -311,13 +387,14 @@ const Employees = () => {
   };
 
   const handleSaveAttendance = async (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
     try {
       if (editingAttendance) {
         await api.put(`/employees/api/attendance/${editingAttendance.id}/`, attendanceFormData);
       } else {
         await api.post('/employees/api/attendance/', attendanceFormData);
       }
+      setIsDirty(false);
       setIsAttendanceModalOpen(false);
       fetchData();
     } catch (err) {
@@ -338,7 +415,7 @@ const Employees = () => {
   };
 
   const handleSaveLoan = async (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
     try {
       const data = {
         ...loanFormData,
@@ -349,6 +426,7 @@ const Employees = () => {
       } else {
         await api.post('/employees/api/loans/', data);
       }
+      setIsDirty(false);
       setIsLoanModalOpen(false);
       fetchData();
     } catch (err) {
@@ -386,7 +464,7 @@ const Employees = () => {
   };
 
   const handleSaveSalary = async (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
     try {
       const data = {
         ...salaryFormData,
@@ -401,6 +479,7 @@ const Employees = () => {
       } else {
         await api.post('/employees/api/salaries/', data);
       }
+      setIsDirty(false);
       setIsSalaryModalOpen(false);
       fetchData();
     } catch (err) {
@@ -869,12 +948,13 @@ const Employees = () => {
 
       {isModalOpen && (
         <div className="fixed inset-0 bg-gray-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl animate-in zoom-in duration-200">
+          <div className="fixed inset-0" onClick={() => handleSafeCloseModal(setIsModalOpen)}></div>
+          <div className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl animate-in zoom-in duration-200 z-10">
             <div className="p-6 border-b border-gray-100 flex justify-between items-center">
               <h2 className="text-xl font-black text-gray-900">
                 {editingEmployee ? 'تعديل بيانات موظف' : 'إضافة موظف جديد'}
               </h2>
-              <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-gray-100 rounded-xl transition-colors">
+              <button onClick={() => handleSafeCloseModal(setIsModalOpen)} className="p-2 hover:bg-gray-100 rounded-xl transition-colors">
                 <X size={20} />
               </button>
             </div>
@@ -888,7 +968,7 @@ const Employees = () => {
                     required
                     className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                     value={formData.name}
-                    onChange={(e) => setFormData({...formData, name: e.target.value})}
+                    onChange={(e) => { setFormData({...formData, name: e.target.value}); markDirty(); }}
                   />
                 </div>
                 <div className="space-y-1.5">
@@ -897,7 +977,7 @@ const Employees = () => {
                     type="text"
                     className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                     value={formData.national_id}
-                    onChange={(e) => setFormData({...formData, national_id: e.target.value})}
+                    onChange={(e) => { setFormData({...formData, national_id: e.target.value}); markDirty(); }}
                   />
                 </div>
                 <div className="space-y-1.5">
@@ -906,7 +986,7 @@ const Employees = () => {
                     type="text"
                     className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                     value={formData.phone}
-                    onChange={(e) => setFormData({...formData, phone: e.target.value})}
+                    onChange={(e) => { setFormData({...formData, phone: e.target.value}); markDirty(); }}
                   />
                 </div>
                 <div className="space-y-1.5">
@@ -915,7 +995,7 @@ const Employees = () => {
                     type="text"
                     className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                     value={formData.job_title}
-                    onChange={(e) => setFormData({...formData, job_title: e.target.value})}
+                    onChange={(e) => { setFormData({...formData, job_title: e.target.value}); markDirty(); }}
                   />
                 </div>
                 <div className="space-y-1.5">
@@ -924,7 +1004,7 @@ const Employees = () => {
                     type="text"
                     className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                     value={formData.department}
-                    onChange={(e) => setFormData({...formData, department: e.target.value})}
+                    onChange={(e) => { setFormData({...formData, department: e.target.value}); markDirty(); }}
                   />
                 </div>
                 <div className="space-y-1.5">
@@ -933,7 +1013,7 @@ const Employees = () => {
                     type="date"
                     className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                     value={formData.hire_date}
-                    onChange={(e) => setFormData({...formData, hire_date: e.target.value})}
+                    onChange={(e) => { setFormData({...formData, hire_date: e.target.value}); markDirty(); }}
                   />
                 </div>
                 <div className="space-y-1.5">
@@ -943,7 +1023,7 @@ const Employees = () => {
                       type="number"
                       className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                       value={formData.salary}
-                      onChange={(e) => setFormData({...formData, salary: e.target.value})}
+                      onChange={(e) => { setFormData({...formData, salary: e.target.value}); markDirty(); }}
                     />
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs font-bold">ج.م</span>
                   </div>
@@ -953,7 +1033,7 @@ const Employees = () => {
                   <select 
                     className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                     value={formData.status}
-                    onChange={(e) => setFormData({...formData, status: e.target.value})}
+                    onChange={(e) => { setFormData({...formData, status: e.target.value}); markDirty(); }}
                   >
                     <option value="active">نشط</option>
                     <option value="inactive">غير نشط</option>
@@ -966,7 +1046,7 @@ const Employees = () => {
                     type="text"
                     className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                     value={formData.address}
-                    onChange={(e) => setFormData({...formData, address: e.target.value})}
+                    onChange={(e) => { setFormData({...formData, address: e.target.value}); markDirty(); }}
                   />
                 </div>
                 <div className="space-y-1.5 md:col-span-2">
@@ -974,7 +1054,7 @@ const Employees = () => {
                   <textarea 
                     className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all h-20 resize-none"
                     value={formData.notes}
-                    onChange={(e) => setFormData({...formData, notes: e.target.value})}
+                    onChange={(e) => { setFormData({...formData, notes: e.target.value}); markDirty(); }}
                   ></textarea>
                 </div>
               </div>
@@ -989,7 +1069,7 @@ const Employees = () => {
                 </button>
                 <button 
                   type="button"
-                  onClick={() => setIsModalOpen(false)}
+                  onClick={() => handleSafeCloseModal(setIsModalOpen)}
                   className="flex-1 bg-gray-100 text-gray-700 py-3 rounded-xl font-bold hover:bg-gray-200 transition-all"
                 >
                   إلغاء
@@ -1003,12 +1083,13 @@ const Employees = () => {
       {/* Attendance Modal */}
       {isAttendanceModalOpen && (
         <div className="fixed inset-0 bg-gray-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl animate-in zoom-in duration-200">
+          <div className="fixed inset-0" onClick={() => handleSafeCloseModal(setIsAttendanceModalOpen)}></div>
+          <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl animate-in zoom-in duration-200 z-10">
             <div className="p-6 border-b border-gray-100 flex justify-between items-center">
               <h2 className="text-xl font-black text-gray-900">
                 {editingAttendance ? 'تعديل سجل حضور' : 'تسجيل حضور جديد'}
               </h2>
-              <button onClick={() => setIsAttendanceModalOpen(false)} className="p-2 hover:bg-gray-100 rounded-xl transition-colors">
+              <button onClick={() => handleSafeCloseModal(setIsAttendanceModalOpen)} className="p-2 hover:bg-gray-100 rounded-xl transition-colors">
                 <X size={20} />
               </button>
             </div>
@@ -1020,7 +1101,7 @@ const Employees = () => {
                   required
                   className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 outline-none transition-all"
                   value={attendanceFormData.employee}
-                  onChange={(e) => setAttendanceFormData({...attendanceFormData, employee: e.target.value})}
+                  onChange={(e) => { setAttendanceFormData({...attendanceFormData, employee: e.target.value}); markDirty(); }}
                 >
                   <option value="">اختر الموظف...</option>
                   {employees.map(emp => (
@@ -1035,7 +1116,7 @@ const Employees = () => {
                   required
                   className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 outline-none transition-all"
                   value={attendanceFormData.date}
-                  onChange={(e) => setAttendanceFormData({...attendanceFormData, date: e.target.value})}
+                  onChange={(e) => { setAttendanceFormData({...attendanceFormData, date: e.target.value}); markDirty(); }}
                 />
               </div>
               <div className="space-y-1.5">
@@ -1043,7 +1124,7 @@ const Employees = () => {
                 <select 
                   className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 outline-none transition-all"
                   value={attendanceFormData.status}
-                  onChange={(e) => setAttendanceFormData({...attendanceFormData, status: e.target.value})}
+                  onChange={(e) => { setAttendanceFormData({...attendanceFormData, status: e.target.value}); markDirty(); }}
                 >
                   <option value="present">حاضر</option>
                   <option value="absent">غائب</option>
@@ -1058,7 +1139,7 @@ const Employees = () => {
                       type="time"
                       className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 outline-none transition-all"
                       value={attendanceFormData.check_in}
-                      onChange={(e) => setAttendanceFormData({...attendanceFormData, check_in: e.target.value})}
+                      onChange={(e) => { setAttendanceFormData({...attendanceFormData, check_in: e.target.value}); markDirty(); }}
                     />
                   </div>
                   <div className="space-y-1.5">
@@ -1067,7 +1148,7 @@ const Employees = () => {
                       type="time"
                       className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 outline-none transition-all"
                       value={attendanceFormData.check_out}
-                      onChange={(e) => setAttendanceFormData({...attendanceFormData, check_out: e.target.value})}
+                      onChange={(e) => { setAttendanceFormData({...attendanceFormData, check_out: e.target.value}); markDirty(); }}
                     />
                   </div>
                 </div>
@@ -1077,7 +1158,7 @@ const Employees = () => {
                 <textarea 
                   className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 outline-none transition-all h-20 resize-none"
                   value={attendanceFormData.notes}
-                  onChange={(e) => setAttendanceFormData({...attendanceFormData, notes: e.target.value})}
+                  onChange={(e) => { setAttendanceFormData({...attendanceFormData, notes: e.target.value}); markDirty(); }}
                 ></textarea>
               </div>
               
@@ -1089,6 +1170,13 @@ const Employees = () => {
                   <Save size={20} />
                   حفظ السجل
                 </button>
+                <button 
+                  type="button"
+                  onClick={() => handleSafeCloseModal(setIsAttendanceModalOpen)}
+                  className="flex-1 bg-gray-100 text-gray-700 py-3 rounded-xl font-bold hover:bg-gray-200 transition-all"
+                >
+                  إلغاء
+                </button>
               </div>
             </form>
           </div>
@@ -1098,10 +1186,11 @@ const Employees = () => {
       {/* Bulk Attendance Modal */}
       {isBulkAttendanceModalOpen && (
         <div className="fixed inset-0 bg-gray-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl w-full max-w-4xl shadow-2xl animate-in zoom-in duration-200 max-h-[90vh] flex flex-col">
+          <div className="fixed inset-0" onClick={() => handleSafeCloseModal(setIsBulkAttendanceModalOpen)}></div>
+          <div className="bg-white rounded-3xl w-full max-w-4xl shadow-2xl animate-in zoom-in duration-200 max-h-[90vh] flex flex-col z-10">
             <div className="p-6 border-b border-gray-100 flex justify-between items-center">
               <h2 className="text-xl font-black text-gray-900">تسجيل حضور جماعي</h2>
-              <button onClick={() => setIsBulkAttendanceModalOpen(false)} className="p-2 hover:bg-gray-100 rounded-xl transition-colors">
+              <button onClick={() => handleSafeCloseModal(setIsBulkAttendanceModalOpen)} className="p-2 hover:bg-gray-100 rounded-xl transition-colors">
                 <X size={20} />
               </button>
             </div>
@@ -1116,7 +1205,7 @@ const Employees = () => {
                       required
                       className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
                       value={bulkAttendanceData.date}
-                      onChange={(e) => setBulkAttendanceData({...bulkAttendanceData, date: e.target.value})}
+                      onChange={(e) => { setBulkAttendanceData({...bulkAttendanceData, date: e.target.value}); markDirty(); }}
                     />
                   </div>
                   <div className="flex-1"></div>
@@ -1126,6 +1215,7 @@ const Employees = () => {
                       onClick={() => {
                         const updatedRecords = bulkAttendanceData.records.map(r => ({...r, status: 'present'}));
                         setBulkAttendanceData({...bulkAttendanceData, records: updatedRecords});
+                        markDirty();
                       }}
                       className="px-4 py-2 bg-green-50 text-green-600 rounded-lg text-sm font-bold hover:bg-green-100 transition-colors"
                     >
@@ -1136,6 +1226,7 @@ const Employees = () => {
                       onClick={() => {
                         const updatedRecords = bulkAttendanceData.records.map(r => ({...r, status: 'absent'}));
                         setBulkAttendanceData({...bulkAttendanceData, records: updatedRecords});
+                        markDirty();
                       }}
                       className="px-4 py-2 bg-red-50 text-red-600 rounded-lg text-sm font-bold hover:bg-red-100 transition-colors"
                     >
@@ -1168,6 +1259,7 @@ const Employees = () => {
                               const newRecords = [...bulkAttendanceData.records];
                               newRecords[index].status = e.target.value;
                               setBulkAttendanceData({...bulkAttendanceData, records: newRecords});
+                              markDirty();
                             }}
                           >
                             <option value="present">حاضر</option>
@@ -1185,6 +1277,7 @@ const Employees = () => {
                               const newRecords = [...bulkAttendanceData.records];
                               newRecords[index].check_in = e.target.value;
                               setBulkAttendanceData({...bulkAttendanceData, records: newRecords});
+                              markDirty();
                             }}
                           />
                         </td>
@@ -1198,6 +1291,7 @@ const Employees = () => {
                               const newRecords = [...bulkAttendanceData.records];
                               newRecords[index].check_out = e.target.value;
                               setBulkAttendanceData({...bulkAttendanceData, records: newRecords});
+                              markDirty();
                             }}
                           />
                         </td>
@@ -1211,6 +1305,7 @@ const Employees = () => {
                               const newRecords = [...bulkAttendanceData.records];
                               newRecords[index].notes = e.target.value;
                               setBulkAttendanceData({...bulkAttendanceData, records: newRecords});
+                              markDirty();
                             }}
                           />
                         </td>
@@ -1228,6 +1323,13 @@ const Employees = () => {
                   <Save size={20} />
                   حفظ سجلات الحضور الجماعي
                 </button>
+                <button 
+                  type="button"
+                  onClick={() => handleSafeCloseModal(setIsBulkAttendanceModalOpen)}
+                  className="flex-1 bg-gray-100 text-gray-700 py-3 rounded-xl font-bold hover:bg-gray-200 transition-all"
+                >
+                  إلغاء
+                </button>
               </div>
             </form>
           </div>
@@ -1237,12 +1339,13 @@ const Employees = () => {
       {/* Loan Modal */}
       {isLoanModalOpen && (
         <div className="fixed inset-0 bg-gray-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl animate-in zoom-in duration-200">
+          <div className="fixed inset-0" onClick={() => handleSafeCloseModal(setIsLoanModalOpen)}></div>
+          <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl animate-in zoom-in duration-200 z-10">
             <div className="p-6 border-b border-gray-100 flex justify-between items-center">
               <h2 className="text-xl font-black text-gray-900">
                 {editingLoan ? 'تعديل سلفة' : 'إضافة سلفة جديدة'}
               </h2>
-              <button onClick={() => setIsLoanModalOpen(false)} className="p-2 hover:bg-gray-100 rounded-xl transition-colors">
+              <button onClick={() => handleSafeCloseModal(setIsLoanModalOpen)} className="p-2 hover:bg-gray-100 rounded-xl transition-colors">
                 <X size={20} />
               </button>
             </div>
@@ -1255,8 +1358,8 @@ const Employees = () => {
                   className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-500 outline-none transition-all"
                   value={loanFormData.employee}
                   onChange={(e) => {
-                    const emp = employees.find(ev => ev.id == e.target.value);
                     setLoanFormData({...loanFormData, employee: e.target.value});
+                    markDirty();
                   }}
                 >
                   <option value="">اختر الموظف...</option>
@@ -1273,7 +1376,7 @@ const Employees = () => {
                     required
                     className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-500 outline-none transition-all"
                     value={loanFormData.amount}
-                    onChange={(e) => setLoanFormData({...loanFormData, amount: e.target.value})}
+                    onChange={(e) => { setLoanFormData({...loanFormData, amount: e.target.value}); markDirty(); }}
                   />
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs font-bold">ج.م</span>
                 </div>
@@ -1285,7 +1388,7 @@ const Employees = () => {
                   required
                   className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-500 outline-none transition-all"
                   value={loanFormData.date}
-                  onChange={(e) => setLoanFormData({...loanFormData, date: e.target.value})}
+                  onChange={(e) => { setLoanFormData({...loanFormData, date: e.target.value}); markDirty(); }}
                 />
               </div>
               <div className="space-y-1.5">
@@ -1294,7 +1397,7 @@ const Employees = () => {
                   required
                   className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-500 outline-none transition-all"
                   value={loanFormData.safe}
-                  onChange={(e) => setLoanFormData({...loanFormData, safe: e.target.value})}
+                  onChange={(e) => { setLoanFormData({...loanFormData, safe: e.target.value}); markDirty(); }}
                 >
                   <option value="">اختر الخزنة...</option>
                   {safes.map(safe => (
@@ -1307,7 +1410,7 @@ const Employees = () => {
                 <textarea 
                   className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-500 outline-none transition-all h-20 resize-none"
                   value={loanFormData.description}
-                  onChange={(e) => setLoanFormData({...loanFormData, description: e.target.value})}
+                  onChange={(e) => { setLoanFormData({...loanFormData, description: e.target.value}); markDirty(); }}
                 ></textarea>
               </div>
               
@@ -1319,6 +1422,13 @@ const Employees = () => {
                   <Save size={20} />
                   حفظ السلفة
                 </button>
+                <button 
+                  type="button"
+                  onClick={() => handleSafeCloseModal(setIsLoanModalOpen)}
+                  className="flex-1 bg-gray-100 text-gray-700 py-3 rounded-xl font-bold hover:bg-gray-200 transition-all"
+                >
+                  إلغاء
+                </button>
               </div>
             </form>
           </div>
@@ -1328,12 +1438,13 @@ const Employees = () => {
       {/* Salary Modal */}
       {isSalaryModalOpen && (
         <div className="fixed inset-0 bg-gray-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl animate-in zoom-in duration-200">
+          <div className="fixed inset-0" onClick={() => handleSafeCloseModal(setIsSalaryModalOpen)}></div>
+          <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl animate-in zoom-in duration-200 z-10">
             <div className="p-6 border-b border-gray-100 flex justify-between items-center">
               <h2 className="text-xl font-black text-gray-900">
                 {editingSalary ? 'تعديل مسودة راتب' : 'إصدار راتب جديد'}
               </h2>
-              <button onClick={() => setIsSalaryModalOpen(false)} className="p-2 hover:bg-gray-100 rounded-xl transition-colors">
+              <button onClick={() => handleSafeCloseModal(setIsSalaryModalOpen)} className="p-2 hover:bg-gray-100 rounded-xl transition-colors">
                 <X size={20} />
               </button>
             </div>
@@ -1352,6 +1463,7 @@ const Employees = () => {
                       employee: e.target.value,
                       base_salary: emp ? emp.salary : 0
                     });
+                    markDirty();
                   }}
                 >
                   <option value="">اختر الموظف...</option>
@@ -1366,7 +1478,7 @@ const Employees = () => {
                   <select 
                     className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
                     value={salaryFormData.month}
-                    onChange={(e) => setSalaryFormData({...salaryFormData, month: e.target.value})}
+                    onChange={(e) => { setSalaryFormData({...salaryFormData, month: e.target.value}); markDirty(); }}
                   >
                     {[...Array(12)].map((_, i) => (
                       <option key={i+1} value={i+1}>{i+1}</option>
@@ -1379,7 +1491,7 @@ const Employees = () => {
                     type="number"
                     className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
                     value={salaryFormData.year}
-                    onChange={(e) => setSalaryFormData({...salaryFormData, year: e.target.value})}
+                    onChange={(e) => { setSalaryFormData({...salaryFormData, year: e.target.value}); markDirty(); }}
                   />
                 </div>
               </div>
@@ -1399,7 +1511,7 @@ const Employees = () => {
                     type="number"
                     className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
                     value={salaryFormData.deductions}
-                    onChange={(e) => setSalaryFormData({...salaryFormData, deductions: e.target.value})}
+                    onChange={(e) => { setSalaryFormData({...salaryFormData, deductions: e.target.value}); markDirty(); }}
                   />
                 </div>
               </div>
@@ -1409,7 +1521,7 @@ const Employees = () => {
                   type="number"
                   className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
                   value={salaryFormData.loans_deduction}
-                  onChange={(e) => setSalaryFormData({...salaryFormData, loans_deduction: e.target.value})}
+                  onChange={(e) => { setSalaryFormData({...salaryFormData, loans_deduction: e.target.value}); markDirty(); }}
                 />
               </div>
               <div className="p-4 bg-indigo-50 rounded-2xl border border-indigo-100">
@@ -1423,7 +1535,7 @@ const Employees = () => {
                 <select 
                   className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
                   value={salaryFormData.safe}
-                  onChange={(e) => setSalaryFormData({...salaryFormData, safe: e.target.value})}
+                  onChange={(e) => { setSalaryFormData({...salaryFormData, safe: e.target.value}); markDirty(); }}
                 >
                   <option value="">اختر الخزنة...</option>
                   {safes.map(safe => (
@@ -1440,8 +1552,42 @@ const Employees = () => {
                   <Save size={20} />
                   حفظ المسودة
                 </button>
+                <button 
+                  type="button"
+                  onClick={() => handleSafeCloseModal(setIsSalaryModalOpen)}
+                  className="flex-1 bg-gray-100 text-gray-700 py-3 rounded-xl font-bold hover:bg-gray-200 transition-all"
+                >
+                  إلغاء
+                </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Exit Confirmation Modal */}
+      {showExitConfirm && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm animate-in fade-in duration-200 text-right">
+          <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl p-8 animate-in zoom-in-95 duration-200">
+            <div className="w-16 h-16 bg-amber-50 text-amber-500 rounded-2xl flex items-center justify-center mb-6 mx-auto">
+              <AlertTriangle size={32} />
+            </div>
+            <h3 className="text-xl font-black text-gray-900 mb-2 text-center">هل أنت متأكد من الخروج؟</h3>
+            <p className="text-gray-500 font-medium mb-8 text-center">لديك تغييرات غير محفوظة، سيتم فقدانها إذا خرجت الآن.</p>
+            <div className="flex gap-3">
+              <button
+                onClick={confirmExit}
+                className="flex-1 bg-amber-500 text-white py-3 rounded-2xl font-bold hover:bg-amber-600 transition-all shadow-lg shadow-amber-100"
+              >
+                نعم، خروج
+              </button>
+              <button
+                onClick={() => setShowExitConfirm(false)}
+                className="flex-1 bg-gray-100 text-gray-600 py-3 rounded-2xl font-bold hover:bg-gray-200 transition-all"
+              >
+                البقاء
+              </button>
+            </div>
           </div>
         </div>
       )}

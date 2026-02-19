@@ -9,13 +9,13 @@
         <p class="text-muted">سائق</p>
     </div>
     <div class="col-md-4 text-end">
-        <a href="{% url 'driver_edit' driver.pk %}" class="btn btn-warning">
+        <a href="{% url 'core:driver_edit' driver.pk %}" class="btn btn-warning">
             <i class="fas fa-edit"></i> تعديل
         </a>
-        <a href="{% url 'driver_delete' driver.pk %}" class="btn btn-danger">
+        <a href="{% url 'core:driver_delete' driver.pk %}" class="btn btn-danger">
             <i class="fas fa-trash"></i> حذف
         </a>
-        <a href="{% url 'driver_list' %}" class="btn btn-secondary">
+        <a href="{% url 'core:driver_list' %}" class="btn btn-secondary">
             <i class="fas fa-arrow-right"></i> العودة للقائمة
         </a>
     </div>

@@ -37,6 +37,8 @@ const ReportViewer = ({ reportType, title, onClose }) => {
       else if (reportType === 'profit_loss') endpoint = '/accounting/api/reports/profit_loss/';
       else if (reportType === 'balance_sheet') endpoint = '/accounting/api/reports/balance_sheet/';
       else if (reportType === 'vat_report') endpoint = '/accounting/api/reports/vat_report/';
+      else if (reportType === 'contact_balances') endpoint = '/accounting/api/reports/contact_balances/';
+      else if (reportType === 'sales_purchase_summary') endpoint = '/accounting/api/reports/sales_purchase_summary/';
       else if (reportType === 'sales_summary') endpoint = '/invoices/api/reports/sales_summary/';
       else if (reportType === 'purchases_summary') endpoint = '/invoices/api/reports/purchases_summary/';
       else if (reportType === 'product_sales') endpoint = '/invoices/api/reports/product_sales/';
@@ -321,6 +323,127 @@ const ReportViewer = ({ reportType, title, onClose }) => {
     </div>
   );
 
+  const renderContactBalances = () => (
+    <div className="overflow-x-auto">
+      <table className="w-full text-right border-collapse">
+        <thead>
+          <tr className="bg-gray-50 text-gray-600 text-sm font-bold border-b">
+            <th className="p-4">كود الجهة</th>
+            <th className="p-4">اسم العميل/المورد</th>
+            <th className="p-4">النوع</th>
+            <th className="p-4">مدين (لنا)</th>
+            <th className="p-4">دائن (علينا)</th>
+            <th className="p-4">الرصيد الصافي</th>
+          </tr>
+        </thead>
+        <tbody>
+          {data.data.map((item, idx) => (
+            <tr key={idx} className="border-b hover:bg-gray-50">
+              <td className="p-4 text-gray-500">{item.contact.code || '-'}</td>
+              <td className="p-4 font-bold">{item.contact.name}</td>
+              <td className="p-4">
+                <span className={`px-2 py-1 rounded-lg text-xs font-bold ${item.contact.contact_type === 'customer' ? 'bg-blue-50 text-blue-600' : 'bg-amber-50 text-amber-600'}`}>
+                  {item.contact.contact_type === 'customer' ? 'عميل' : 'مورد'}
+                </span>
+              </td>
+              <td className="p-4 text-green-600">{parseFloat(item.debit).toLocaleString()}</td>
+              <td className="p-4 text-rose-600">{parseFloat(item.credit).toLocaleString()}</td>
+              <td className={`p-4 font-black ${parseFloat(item.balance) >= 0 ? 'text-green-700' : 'text-rose-700'}`}>
+                {parseFloat(item.balance).toLocaleString()}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+        <tfoot>
+          <tr className="bg-gray-800 text-white font-black">
+            <td className="p-4" colSpan={3}>الإجمالي العام</td>
+            <td className="p-4">{parseFloat(data.total_debit).toLocaleString()}</td>
+            <td className="p-4">{parseFloat(data.total_credit).toLocaleString()}</td>
+            <td className="p-4">{parseFloat(data.net_balance).toLocaleString()}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  );
+
+  const renderSalesPurchaseSummary = () => (
+    <div className="space-y-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        {/* Sales Summary Card */}
+        <div className="bg-white p-6 rounded-[2rem] border-2 border-blue-50 shadow-sm">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-12 h-12 bg-blue-100 rounded-2xl flex items-center justify-center text-blue-600">
+              <TrendingUp size={24} />
+            </div>
+            <div>
+              <h3 className="text-xl font-black text-gray-800">ملخص المبيعات</h3>
+              <p className="text-gray-500 text-sm">إحصائيات المبيعات خلال الفترة</p>
+            </div>
+          </div>
+          <div className="space-y-4">
+            <div className="flex justify-between items-center p-4 bg-blue-50 rounded-2xl">
+              <span className="font-bold text-blue-700">إجمالي المبيعات (صافي)</span>
+              <span className="text-xl font-black text-blue-900">{parseFloat(data.sales.total_net || 0).toLocaleString()}</span>
+            </div>
+            <div className="flex justify-between items-center p-4 bg-green-50 rounded-2xl">
+              <span className="font-bold text-green-700">المبلغ المحصل</span>
+              <span className="text-xl font-black text-green-900">{parseFloat(data.sales.total_paid || 0).toLocaleString()}</span>
+            </div>
+            <div className="flex justify-between items-center p-4 bg-rose-50 rounded-2xl">
+              <span className="font-bold text-rose-700">الديون المتبقية عند العملاء</span>
+              <span className="text-xl font-black text-rose-900">{parseFloat(data.sales.total_remaining || 0).toLocaleString()}</span>
+            </div>
+            <div className="flex justify-between items-center px-4 py-2 text-gray-500 text-sm border-t border-dashed mt-2 pt-2">
+              <span>ضريبة القيمة المضافة</span>
+              <span>{parseFloat(data.sales.total_vat || 0).toLocaleString()}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Purchase Summary Card */}
+        <div className="bg-white p-6 rounded-[2rem] border-2 border-rose-50 shadow-sm">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-12 h-12 bg-rose-100 rounded-2xl flex items-center justify-center text-rose-600">
+              <Download size={24} />
+            </div>
+            <div>
+              <h3 className="text-xl font-black text-gray-800">ملخص المشتريات</h3>
+              <p className="text-gray-500 text-sm">إحصائيات المشتريات خلال الفترة</p>
+            </div>
+          </div>
+          <div className="space-y-4">
+            <div className="flex justify-between items-center p-4 bg-rose-50 rounded-2xl">
+              <span className="font-bold text-rose-700">إجمالي المشتريات (صافي)</span>
+              <span className="text-xl font-black text-rose-900">{parseFloat(data.purchases.total_net || 0).toLocaleString()}</span>
+            </div>
+            <div className="flex justify-between items-center p-4 bg-green-50 rounded-2xl">
+              <span className="font-bold text-green-700">المبلغ المدفوع</span>
+              <span className="text-xl font-black text-green-900">{parseFloat(data.purchases.total_paid || 0).toLocaleString()}</span>
+            </div>
+            <div className="flex justify-between items-center p-4 bg-blue-50 rounded-2xl">
+              <span className="font-bold text-blue-700">الديون المتبقية للموردين</span>
+              <span className="text-xl font-black text-blue-900">{parseFloat(data.purchases.total_remaining || 0).toLocaleString()}</span>
+            </div>
+            <div className="flex justify-between items-center px-4 py-2 text-gray-500 text-sm border-t border-dashed mt-2 pt-2">
+              <span>ضريبة القيمة المضافة</span>
+              <span>{parseFloat(data.purchases.total_vat || 0).toLocaleString()}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className={`p-8 rounded-[2.5rem] flex flex-col md:flex-row justify-between items-center gap-4 text-white shadow-xl ${ (parseFloat(data.sales.total_net || 0) - parseFloat(data.purchases.total_net || 0)) >= 0 ? 'bg-gradient-to-r from-green-600 to-teal-600' : 'bg-gradient-to-r from-rose-600 to-pink-600'}`}>
+        <div>
+          <h4 className="text-lg opacity-80 font-bold">الفرق بين المبيعات والمشتريات (قبل المصاريف الأخرى)</h4>
+          <p className="text-sm opacity-60">هذا الرقم يمثل هامش الربح الإجمالي للعمليات التجارية فقط</p>
+        </div>
+        <div className="text-4xl font-black">
+          {(parseFloat(data.sales.total_net || 0) - parseFloat(data.purchases.total_net || 0)).toLocaleString()}
+        </div>
+      </div>
+    </div>
+  );
+
   const renderVATReport = () => (
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -418,6 +541,8 @@ const ReportViewer = ({ reportType, title, onClose }) => {
               {reportType === 'profit_loss' && renderProfitLoss()}
               {reportType === 'balance_sheet' && renderBalanceSheet()}
               {reportType === 'vat_report' && renderVATReport()}
+              {reportType === 'contact_balances' && renderContactBalances()}
+              {reportType === 'sales_purchase_summary' && renderSalesPurchaseSummary()}
               {reportType === 'sales_summary' && renderSalesSummary()}
               {reportType === 'purchases_summary' && renderPurchasesSummary()}
               {reportType === 'product_sales' && renderProductSales()}

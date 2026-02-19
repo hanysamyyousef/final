@@ -12,8 +12,9 @@ import {
   Edit2,
   Trash2,
   X,
-  Save,
-  Truck
+  Save, 
+  Truck,
+  AlertTriangle
 } from 'lucide-react';
 
 const Drivers = () => {
@@ -21,6 +22,39 @@ const Drivers = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isDirty, setIsDirty] = useState(false);
+  const [showExitConfirm, setShowExitConfirm] = useState(false);
+
+  const markDirty = () => setIsDirty(true);
+
+  const handleSafeCloseModal = () => {
+    if (isDirty) {
+      setShowExitConfirm(true);
+    } else {
+      setIsModalOpen(false);
+      setEditingDriver(null);
+    }
+  };
+
+  const confirmExit = () => {
+    setIsDirty(false);
+    setShowExitConfirm(false);
+    setIsModalOpen(false);
+    setEditingDriver(null);
+  };
+
+  // Handle browser back/close
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      if (isDirty) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [isDirty]);
+  
   const [editingDriver, setEditingDriver] = useState(null);
   const [formData, setFormData] = useState({
     name: '',
@@ -48,6 +82,7 @@ const Drivers = () => {
   }, []);
 
   const handleOpenModal = (driver = null) => {
+    setIsDirty(false);
     if (driver) {
       setEditingDriver(driver);
       setFormData({
@@ -80,6 +115,7 @@ const Drivers = () => {
       } else {
         await api.post('/api/drivers/', formData);
       }
+      setIsDirty(false);
       setIsModalOpen(false);
       fetchDrivers();
     } catch (err) {
@@ -241,7 +277,7 @@ const Drivers = () => {
                 {editingDriver ? 'تعديل بيانات السائق' : 'إضافة سائق جديد'}
               </h2>
               <button 
-                onClick={() => setIsModalOpen(false)}
+                onClick={handleSafeCloseModal}
                 className="p-2 text-gray-400 hover:text-gray-600 hover:bg-white rounded-xl transition-all"
               >
                 <X size={24} />
@@ -257,7 +293,10 @@ const Drivers = () => {
                     required
                     className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-bold"
                     value={formData.name}
-                    onChange={(e) => setFormData({...formData, name: e.target.value})}
+                    onChange={(e) => {
+                      setFormData({...formData, name: e.target.value});
+                      markDirty();
+                    }}
                   />
                 </div>
 
@@ -267,7 +306,10 @@ const Drivers = () => {
                     type="text"
                     className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-bold"
                     value={formData.phone}
-                    onChange={(e) => setFormData({...formData, phone: e.target.value})}
+                    onChange={(e) => {
+                      setFormData({...formData, phone: e.target.value});
+                      markDirty();
+                    }}
                   />
                 </div>
 
@@ -277,7 +319,10 @@ const Drivers = () => {
                     type="text"
                     className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-bold"
                     value={formData.id_number}
-                    onChange={(e) => setFormData({...formData, id_number: e.target.value})}
+                    onChange={(e) => {
+                      setFormData({...formData, id_number: e.target.value});
+                      markDirty();
+                    }}
                   />
                 </div>
 
@@ -287,7 +332,10 @@ const Drivers = () => {
                     type="text"
                     className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-bold"
                     value={formData.license_number}
-                    onChange={(e) => setFormData({...formData, license_number: e.target.value})}
+                    onChange={(e) => {
+                      setFormData({...formData, license_number: e.target.value});
+                      markDirty();
+                    }}
                   />
                 </div>
 
@@ -297,7 +345,10 @@ const Drivers = () => {
                     type="text"
                     className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-bold"
                     value={formData.address}
-                    onChange={(e) => setFormData({...formData, address: e.target.value})}
+                    onChange={(e) => {
+                      setFormData({...formData, address: e.target.value});
+                      markDirty();
+                    }}
                   />
                 </div>
 
@@ -307,7 +358,10 @@ const Drivers = () => {
                     rows="3"
                     className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-bold resize-none"
                     value={formData.notes}
-                    onChange={(e) => setFormData({...formData, notes: e.target.value})}
+                    onChange={(e) => {
+                      setFormData({...formData, notes: e.target.value});
+                      markDirty();
+                    }}
                   ></textarea>
                 </div>
               </div>
@@ -322,13 +376,44 @@ const Drivers = () => {
                 </button>
                 <button 
                   type="button"
-                  onClick={() => setIsModalOpen(false)}
+                  onClick={handleSafeCloseModal}
                   className="px-8 py-4 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-2xl font-black transition-all"
                 >
                   إلغاء
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Exit Confirmation Modal */}
+      {showExitConfirm && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-white rounded-[2rem] w-full max-w-md shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div className="p-8 text-center">
+              <div className="w-20 h-20 bg-amber-50 rounded-full flex items-center justify-center mx-auto mb-6">
+                <AlertTriangle size={40} className="text-amber-500" />
+              </div>
+              <h3 className="text-2xl font-black text-gray-900 mb-4">تنبيه: تغييرات غير محفوظة</h3>
+              <p className="text-gray-600 font-bold mb-8 leading-relaxed">
+                لديك تغييرات لم يتم حفظها. هل أنت متأكد من رغبتك في الخروج؟ سيتم فقدان جميع التغييرات.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={confirmExit}
+                  className="flex-1 bg-red-600 hover:bg-red-700 text-white py-4 rounded-2xl font-black transition-all"
+                >
+                  خروج بدون حفظ
+                </button>
+                <button
+                  onClick={() => setShowExitConfirm(false)}
+                  className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-600 py-4 rounded-2xl font-black transition-all"
+                >
+                  البقاء
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

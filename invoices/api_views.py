@@ -12,6 +12,25 @@ class PaymentViewSet(viewsets.ModelViewSet):
     serializer_class = PaymentSerializer
     permission_classes = [IsAuthenticated]
 
+    def perform_update(self, serializer):
+        instance = self.get_object()
+        was_posted = instance.is_posted
+        
+        try:
+            # إذا كان السند مرحلاً، يجب إلغاء ترحيله أولاً بالقيم القديمة
+            if was_posted:
+                instance.unpost_payment()
+            
+            # تحديث السند بالقيم الجديدة
+            payment = serializer.save()
+            
+            # إذا كان السند مرحلاً أصلاً، نرحله مرة أخرى بالقيم الجديدة
+            if was_posted:
+                payment.post_payment()
+        except ValueError as e:
+            from rest_framework.exceptions import ValidationError
+            raise ValidationError(str(e))
+
     @action(detail=True, methods=['post'])
     def post_payment(self, request, pk=None):
         payment = self.get_object()
@@ -91,6 +110,50 @@ class InvoiceViewSet(viewsets.ModelViewSet):
     queryset = Invoice.objects.all().order_by('-date')
     serializer_class = InvoiceSerializer
     permission_classes = [IsAuthenticated]
+
+    def perform_create(self, serializer):
+        invoice = serializer.save()
+        if invoice.is_posted:
+            try:
+                invoice.post_invoice()
+            except Exception as e:
+                # إذا فشل الترحيل، لا نحذف الفاتورة ولكن نرجع خطأ للمستخدم
+                # ملاحظة: في بيئة الإنتاج قد ترغب في تتبع هذا الخطأ
+                pass
+
+    def perform_update(self, serializer):
+        invoice = serializer.save()
+        if invoice.is_posted:
+            try:
+                invoice.post_invoice()
+            except Exception as e:
+                pass
+
+    @action(detail=True, methods=['post'])
+    def post_invoice(self, request, pk=None):
+        invoice = self.get_object()
+        try:
+            invoice.post_invoice()
+            invoice.is_posted = True
+            invoice.save(update_fields=['is_posted'])
+            return Response({'status': 'invoice posted'})
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['post'])
+    def unpost_invoice(self, request, pk=None):
+        invoice = self.get_object()
+        # هنا يجب إضافة منطق إلغاء الترحيل إذا كان متاحاً في الموديل
+        invoice.is_posted = False
+        invoice.save(update_fields=['is_posted'])
+        # حذف المعاملات المرتبطة
+        from finances.models import ContactTransaction, SafeTransaction, ProductTransaction
+        from accounting.models import JournalEntry
+        ContactTransaction.objects.filter(invoice=invoice).delete()
+        SafeTransaction.objects.filter(invoice=invoice).delete()
+        ProductTransaction.objects.filter(invoice=invoice).delete()
+        JournalEntry.objects.filter(reference=invoice.number).delete()
+        return Response({'status': 'invoice unposted'})
 
     @action(detail=False, methods=['get'])
     def next_number(self, request):

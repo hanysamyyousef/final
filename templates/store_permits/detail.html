@@ -20,25 +20,25 @@
                     </h3>
                     <div class="card-tools">
                         <div class="btn-group">
-                            <a href="{% url 'store_permit_edit' permit.id %}" class="btn btn-primary">
+                            <a href="{% url 'finances:store_permit_edit' permit.id %}" class="btn btn-primary">
                                 <i class="fas fa-edit"></i> تعديل
                             </a>
-                            <a href="{% url 'store_permit_delete' permit.id %}" class="btn btn-danger">
+                            <a href="{% url 'finances:store_permit_delete' permit.id %}" class="btn btn-danger">
                                 <i class="fas fa-trash"></i> حذف
                             </a>
                             {% if permit.is_posted %}
-                                <a href="{% url 'store_permit_unpost' permit.id %}" class="btn btn-warning">
+                                <a href="{% url 'finances:store_permit_unpost' permit.id %}" class="btn btn-warning">
                                     <i class="fas fa-undo"></i> إلغاء الترحيل
                                 </a>
                             {% else %}
-                                <a href="{% url 'store_permit_post' permit.id %}" class="btn btn-success">
+                                <a href="{% url 'finances:store_permit_post' permit.id %}" class="btn btn-success">
                                     <i class="fas fa-check"></i> ترحيل
                                 </a>
                             {% endif %}
-                            <a href="{% url 'store_permit_print' permit.id %}" class="btn btn-info" target="_blank">
+                            <a href="{% url 'finances:store_permit_print' permit.id %}" class="btn btn-info" target="_blank">
                                 <i class="fas fa-print"></i> طباعة
                             </a>
-                            <a href="{% url 'store_permit_list' %}" class="btn btn-secondary">
+                            <a href="{% url 'finances:store_permit_list' %}" class="btn btn-secondary">
                                 <i class="fas fa-list"></i> العودة للقائمة
                             </a>
                         </div>

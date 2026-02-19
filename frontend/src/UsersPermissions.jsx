@@ -20,6 +20,7 @@ const UsersPermissions = () => {
   const [users, setUsers] = useState([]);
   const [roles, setRoles] = useState([]);
   const [customRoles, setCustomRoles] = useState([]);
+  const [branches, setBranches] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -33,7 +34,9 @@ const UsersPermissions = () => {
     last_name: '',
     password: '',
     role: 'employee',
-    is_active: true
+    is_active: true,
+    allowed_branches: [],
+    manage_all_branches: false
   });
   const [isPermissionsModalOpen, setIsPermissionsModalOpen] = useState(false);
   const [selectedRole, setSelectedRole] = useState(null);
@@ -52,20 +55,23 @@ const UsersPermissions = () => {
     try {
       setLoading(true);
       setError(null);
-      const [usersRes, rolesRes, customRolesRes] = await Promise.all([
+      const [usersRes, rolesRes, customRolesRes, branchesRes] = await Promise.all([
         api.get('/users/api/users/'),
         api.get('/users/api/users/roles_list/'),
-        api.get('/users/api/custom-roles/')
+        api.get('/users/api/custom-roles/'),
+        api.get('/core/api/branches/')
       ]);
       
       // Handle potential paginated response
       const usersData = Array.isArray(usersRes.data) ? usersRes.data : usersRes.data.results || [];
       const rolesData = Array.isArray(rolesRes.data) ? rolesRes.data : rolesRes.data.results || [];
       const customRolesData = Array.isArray(customRolesRes.data) ? customRolesRes.data : customRolesRes.data.results || [];
+      const branchesData = Array.isArray(branchesRes.data) ? branchesRes.data : branchesRes.data.results || [];
       
       setUsers(usersData);
       setRoles(rolesData);
       setCustomRoles(customRolesData);
+      setBranches(branchesData);
     } catch (err) {
       console.error('Error fetching data:', err);
       setError('حدث خطأ أثناء جلب البيانات من الخادم. يرجى التأكد من اتصالك بالإنترنت أو المحاولة مرة أخرى.');
@@ -176,7 +182,9 @@ const UsersPermissions = () => {
         last_name: user.last_name,
         password: '', // Don't show password
         role: user.profile?.role || 'employee',
-        is_active: user.is_active
+        is_active: user.is_active,
+        allowed_branches: user.profile?.allowed_branches || [],
+        manage_all_branches: user.profile?.manage_all_branches || false
       });
     } else {
       setEditingUser(null);
@@ -187,7 +195,9 @@ const UsersPermissions = () => {
         last_name: '',
         password: '',
         role: 'employee',
-        is_active: true
+        is_active: true,
+        allowed_branches: [],
+        manage_all_branches: false
       });
     }
     setIsUserModalOpen(true);
@@ -198,7 +208,11 @@ const UsersPermissions = () => {
     try {
       const payload = {
         ...formData,
-        profile: { role: formData.role }
+        profile: { 
+          role: formData.role,
+          allowed_branches: formData.allowed_branches,
+          manage_all_branches: formData.manage_all_branches
+        }
       };
       
       if (editingUser) {
@@ -410,6 +424,19 @@ const UsersPermissions = () => {
                         <div>
                           <h3 className="text-xl font-black text-gray-900">{user.username}</h3>
                           <p className="text-gray-500 font-bold text-sm">{user.email}</p>
+                          <div className="mt-1 flex flex-wrap gap-1">
+                            {user.profile?.manage_all_branches ? (
+                              <span className="px-2 py-0.5 bg-green-50 text-green-600 text-[10px] font-black rounded-md">كل الفروع</span>
+                            ) : (
+                              (user.profile?.allowed_branches || []).length > 0 ? (
+                                <span className="px-2 py-0.5 bg-blue-50 text-blue-600 text-[10px] font-black rounded-md">
+                                  {user.profile.allowed_branches.length} فروع
+                                </span>
+                              ) : (
+                                <span className="px-2 py-0.5 bg-orange-50 text-orange-600 text-[10px] font-black rounded-md">لا فروع</span>
+                              )
+                            )}
+                          </div>
                         </div>
                       </div>
                       <button 
@@ -763,6 +790,47 @@ const UsersPermissions = () => {
                   className="w-6 h-6 rounded-lg border-none text-blue-600 focus:ring-0 cursor-pointer"
                 />
                 <label htmlFor="is_active" className="text-sm font-black text-blue-900 cursor-pointer select-none">المستخدم نشط ويمكنه تسجيل الدخول للنظام</label>
+              </div>
+
+              {/* Branches Selection Section */}
+              <div className="mb-8 space-y-4">
+                <h3 className="text-lg font-black text-gray-900 border-b border-gray-100 pb-2">صلاحيات الفروع</h3>
+                
+                <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-2xl">
+                  <input
+                    type="checkbox"
+                    id="manage_all_branches"
+                    checked={formData.manage_all_branches}
+                    onChange={(e) => setFormData({...formData, manage_all_branches: e.target.checked})}
+                    className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <label htmlFor="manage_all_branches" className="text-sm font-bold text-gray-700">إدارة جميع الفروع (صلاحية كاملة)</label>
+                </div>
+
+                {!formData.manage_all_branches && (
+                  <div className="space-y-3">
+                    <label className="text-sm font-black text-gray-700 block mr-2">تحديد الفروع المسموحة:</label>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-48 overflow-y-auto p-2">
+                      {branches.map(branch => (
+                        <div key={branch.id} className="flex items-center gap-3 p-3 bg-white border border-gray-100 rounded-xl hover:border-blue-200 transition-all">
+                          <input
+                            type="checkbox"
+                            id={`branch-${branch.id}`}
+                            checked={formData.allowed_branches.includes(branch.id)}
+                            onChange={(e) => {
+                              const newAllowed = e.target.checked 
+                                ? [...formData.allowed_branches, branch.id]
+                                : formData.allowed_branches.filter(id => id !== branch.id);
+                              setFormData({...formData, allowed_branches: newAllowed});
+                            }}
+                            className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          <label htmlFor={`branch-${branch.id}`} className="text-xs font-bold text-gray-600">{branch.name}</label>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="flex items-center gap-4">

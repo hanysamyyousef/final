@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="card shadow mb-4">
+        <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+            <h6 class="m-0 font-weight-bold text-primary">{{ title }}</h6>
+            <div>
+                <button onclick="window.print()" class="btn btn-sm btn-secondary">
+                    <i class="fas fa-print"></i> {% trans "طباعة" %}
+                </button>
+                <a href="{% url 'accounting:report_center' %}" class="btn btn-sm btn-outline-primary ms-2">
+                    <i class="fas fa-arrow-right"></i> {% trans "العودة لمركز التقارير" %}
+                </a>
+            </div>
+        </div>
+        <div class="card-body">
+            <form method="get" class="mb-4 no-print">
+                <div class="row align-items-end">
+                    <div class="col-md-4">
+                        <label>{% trans "نوع الطرف" %}</label>
+                        <select name="contact_type" class="form-control">
+                            <option value="">{% trans "الكل" %}</option>
+                            <option value="customer" {% if contact_type == 'customer' %}selected{% endif %}>{% trans "العملاء" %}</option>
+                            <option value="supplier" {% if contact_type == 'supplier' %}selected{% endif %}>{% trans "الموردين" %}</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <button type="submit" class="btn btn-primary">{% trans "تصفية" %}</button>
+                    </div>
+                </div>
+            </form>
+
+            <div class="table-responsive">
+                <table class="table table-bordered table-striped">
+                    <thead class="bg-dark text-white text-center">
+                        <tr>
+                            <th>{% trans "الاسم" %}</th>
+                            <th>{% trans "النوع" %}</th>
+                            <th>{% trans "مدين (لنا)" %}</th>
+                            <th>{% trans "دائن (علينا)" %}</th>
+                            <th>{% trans "الرصيد النهائي" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in report.data %}
+                        <tr>
+                            <td>{{ row.contact.name }}</td>
+                            <td class="text-center">
+                                {% if row.contact.contact_type == 'customer' %}
+                                    <span class="badge bg-info">{% trans "عميل" %}</span>
+                                {% else %}
+                                    <span class="badge bg-warning text-dark">{% trans "مورد" %}</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-center text-success">
+                                {% if row.debit > 0 %}{{ row.debit|floatformat:2 }}{% else %}-{% endif %}
+                            </td>
+                            <td class="text-center text-danger">
+                                {% if row.credit > 0 %}{{ row.credit|floatformat:2 }}{% else %}-{% endif %}
+                            </td>
+                            <td class="text-center font-weight-bold {% if row.balance > 0 %}text-success{% elif row.balance < 0 %}text-danger{% endif %}">
+                                {{ row.balance|floatformat:2 }}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="5" class="text-center">{% trans "لا توجد بيانات متاحة" %}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot class="bg-light font-weight-bold">
+                        <tr>
+                            <td colspan="2" class="text-right">{% trans "الإجمالي الكلي" %}</td>
+                            <td class="text-center text-success">{{ report.total_debit|floatformat:2 }}</td>
+                            <td class="text-center text-danger">{{ report.total_credit|floatformat:2 }}</td>
+                            <td class="text-center {% if report.net_balance > 0 %}text-success{% else %}text-danger{% endif %}">
+                                {{ report.net_balance|floatformat:2 }}
+                            </td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+@media print {
+    .no-print { display: none !important; }
+    .card { border: none !important; box-shadow: none !important; }
+}
+</style>
+{% endblock %}

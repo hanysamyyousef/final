@@ -13,7 +13,8 @@ import {
   X,
   Save,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  AlertTriangle
 } from 'lucide-react';
 
 const FixedAssets = () => {
@@ -23,6 +24,43 @@ const FixedAssets = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingAsset, setEditingAsset] = useState(null);
+  
+  // DLP States
+  const [isDirty, setIsDirty] = useState(false);
+  const [showExitConfirm, setShowExitConfirm] = useState(false);
+  const [pendingCloseAction, setPendingCloseAction] = useState(null);
+
+  const markDirty = () => setIsDirty(true);
+
+  const handleSafeCloseModal = (closeAction) => {
+    if (isDirty) {
+      setPendingCloseAction(() => closeAction);
+      setShowExitConfirm(true);
+    } else {
+      closeAction();
+    }
+  };
+
+  const confirmExit = () => {
+    if (pendingCloseAction) {
+      pendingCloseAction();
+    }
+    setShowExitConfirm(false);
+    setIsDirty(false);
+  };
+
+  // Browser tab closure protection
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      if (isDirty) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [isDirty]);
+
   const [formData, setFormData] = useState({
     name: '',
     code: '',
@@ -64,6 +102,7 @@ const FixedAssets = () => {
   }, []);
 
   const handleOpenModal = (asset = null) => {
+    setIsDirty(false);
     if (asset) {
       setEditingAsset(asset);
       setFormData({
@@ -107,6 +146,7 @@ const FixedAssets = () => {
         await api.post('/accounting/api/fixed-assets/', formData);
       }
       setIsModalOpen(false);
+      setIsDirty(false);
       fetchAssets();
     } catch (err) {
       console.error('Error saving asset:', err);
@@ -326,7 +366,7 @@ const FixedAssets = () => {
                 {editingAsset ? 'تعديل بيانات الأصل' : 'إضافة أصل جديد'}
               </h3>
               <button 
-                onClick={() => setIsModalOpen(false)}
+                onClick={() => handleSafeCloseModal(() => setIsModalOpen(false))}
                 className="p-2 hover:bg-white rounded-xl transition-all text-gray-400 hover:text-gray-600"
               >
                 <X size={20} />
@@ -342,7 +382,10 @@ const FixedAssets = () => {
                     type="text"
                     className="w-full px-4 py-3 bg-gray-50 border-none rounded-2xl text-sm font-medium focus:ring-2 focus:ring-blue-500 transition-all outline-none"
                     value={formData.name}
-                    onChange={(e) => setFormData({...formData, name: e.target.value})}
+                    onChange={(e) => {
+                      setFormData({...formData, name: e.target.value});
+                      markDirty();
+                    }}
                   />
                 </div>
                 <div className="space-y-2">
@@ -352,7 +395,10 @@ const FixedAssets = () => {
                     type="text"
                     className="w-full px-4 py-3 bg-gray-50 border-none rounded-2xl text-sm font-medium focus:ring-2 focus:ring-blue-500 transition-all outline-none"
                     value={formData.code}
-                    onChange={(e) => setFormData({...formData, code: e.target.value})}
+                    onChange={(e) => {
+                      setFormData({...formData, code: e.target.value});
+                      markDirty();
+                    }}
                   />
                 </div>
 
@@ -362,7 +408,10 @@ const FixedAssets = () => {
                     required
                     className="w-full px-4 py-3 bg-gray-50 border-none rounded-2xl text-sm font-medium focus:ring-2 focus:ring-blue-500 transition-all outline-none"
                     value={formData.asset_account}
-                    onChange={(e) => setFormData({...formData, asset_account: e.target.value})}
+                    onChange={(e) => {
+                      setFormData({...formData, asset_account: e.target.value});
+                      markDirty();
+                    }}
                   >
                     <option value="">اختر الحساب...</option>
                     {accounts.filter(a => a.account_type === 'asset' && a.is_selectable).map(acc => (
@@ -377,7 +426,10 @@ const FixedAssets = () => {
                     required
                     className="w-full px-4 py-3 bg-gray-50 border-none rounded-2xl text-sm font-medium focus:ring-2 focus:ring-blue-500 transition-all outline-none"
                     value={formData.depreciation_account}
-                    onChange={(e) => setFormData({...formData, depreciation_account: e.target.value})}
+                    onChange={(e) => {
+                      setFormData({...formData, depreciation_account: e.target.value});
+                      markDirty();
+                    }}
                   >
                     <option value="">اختر الحساب...</option>
                     {accounts.filter(a => a.account_type === 'liability' && a.is_selectable).map(acc => (
@@ -392,7 +444,10 @@ const FixedAssets = () => {
                     required
                     className="w-full px-4 py-3 bg-gray-50 border-none rounded-2xl text-sm font-medium focus:ring-2 focus:ring-blue-500 transition-all outline-none"
                     value={formData.expense_account}
-                    onChange={(e) => setFormData({...formData, expense_account: e.target.value})}
+                    onChange={(e) => {
+                      setFormData({...formData, expense_account: e.target.value});
+                      markDirty();
+                    }}
                   >
                     <option value="">اختر الحساب...</option>
                     {accounts.filter(a => a.account_type === 'expense' && a.is_selectable).map(acc => (
@@ -408,7 +463,10 @@ const FixedAssets = () => {
                     type="date"
                     className="w-full px-4 py-3 bg-gray-50 border-none rounded-2xl text-sm font-medium focus:ring-2 focus:ring-blue-500 transition-all outline-none"
                     value={formData.acquisition_date}
-                    onChange={(e) => setFormData({...formData, acquisition_date: e.target.value})}
+                    onChange={(e) => {
+                      setFormData({...formData, acquisition_date: e.target.value});
+                      markDirty();
+                    }}
                   />
                 </div>
 
@@ -420,7 +478,10 @@ const FixedAssets = () => {
                     step="0.01"
                     className="w-full px-4 py-3 bg-gray-50 border-none rounded-2xl text-sm font-medium focus:ring-2 focus:ring-blue-500 transition-all outline-none text-left"
                     value={formData.acquisition_cost}
-                    onChange={(e) => setFormData({...formData, acquisition_cost: e.target.value})}
+                    onChange={(e) => {
+                      setFormData({...formData, acquisition_cost: e.target.value});
+                      markDirty();
+                    }}
                   />
                 </div>
 
@@ -432,7 +493,10 @@ const FixedAssets = () => {
                     step="0.01"
                     className="w-full px-4 py-3 bg-gray-50 border-none rounded-2xl text-sm font-medium focus:ring-2 focus:ring-blue-500 transition-all outline-none text-left"
                     value={formData.salvage_value}
-                    onChange={(e) => setFormData({...formData, salvage_value: e.target.value})}
+                    onChange={(e) => {
+                      setFormData({...formData, salvage_value: e.target.value});
+                      markDirty();
+                    }}
                   />
                 </div>
 
@@ -443,7 +507,10 @@ const FixedAssets = () => {
                     type="number"
                     className="w-full px-4 py-3 bg-gray-50 border-none rounded-2xl text-sm font-medium focus:ring-2 focus:ring-blue-500 transition-all outline-none text-left"
                     value={formData.useful_life_years}
-                    onChange={(e) => setFormData({...formData, useful_life_years: e.target.value})}
+                    onChange={(e) => {
+                      setFormData({...formData, useful_life_years: e.target.value});
+                      markDirty();
+                    }}
                   />
                 </div>
 
@@ -452,7 +519,10 @@ const FixedAssets = () => {
                   <select
                     className="w-full px-4 py-3 bg-gray-50 border-none rounded-2xl text-sm font-medium focus:ring-2 focus:ring-blue-500 transition-all outline-none"
                     value={formData.depreciation_method}
-                    onChange={(e) => setFormData({...formData, depreciation_method: e.target.value})}
+                    onChange={(e) => {
+                      setFormData({...formData, depreciation_method: e.target.value});
+                      markDirty();
+                    }}
                   >
                     <option value="SL">القسط الثابت - Straight Line</option>
                     <option value="DB">الرصيد المتناقص - Declining Balance</option>
@@ -470,13 +540,40 @@ const FixedAssets = () => {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setIsModalOpen(false)}
+                  onClick={() => handleSafeCloseModal(() => setIsModalOpen(false))}
                   className="flex-1 bg-gray-50 text-gray-600 py-3.5 rounded-2xl font-black hover:bg-gray-100 transition-all"
                 >
                   إلغاء
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Exit Confirmation Modal */}
+      {showExitConfirm && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white w-full max-md rounded-3xl shadow-2xl p-8 animate-in zoom-in-95 duration-200 text-right">
+            <div className="w-16 h-16 bg-amber-50 text-amber-500 rounded-2xl flex items-center justify-center mb-6 mx-auto">
+              <AlertTriangle size={32} />
+            </div>
+            <h3 className="text-xl font-black text-gray-900 mb-2 text-center">هل أنت متأكد من الخروج؟</h3>
+            <p className="text-gray-500 font-medium mb-8 text-center">لديك تغييرات غير محفوظة، سيتم فقدانها إذا خرجت الآن.</p>
+            <div className="flex gap-3">
+              <button
+                onClick={confirmExit}
+                className="flex-1 bg-amber-500 text-white py-3 rounded-2xl font-bold hover:bg-amber-600 transition-all shadow-lg shadow-amber-100"
+              >
+                نعم، خروج
+              </button>
+              <button
+                onClick={() => setShowExitConfirm(false)}
+                className="flex-1 bg-gray-100 text-gray-600 py-3 rounded-2xl font-bold hover:bg-gray-200 transition-all"
+              >
+                البقاء
+              </button>
+            </div>
           </div>
         </div>
       )}

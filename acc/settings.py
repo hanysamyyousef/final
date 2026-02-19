@@ -63,6 +63,7 @@ INSTALLED_APPS = [
     "users",
     "employees",
     "accounting",
+    "hatchery",
     "rest_framework",
     "rest_framework_simplejwt",
     "corsheaders",

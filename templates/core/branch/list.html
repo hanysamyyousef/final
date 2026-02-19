@@ -8,7 +8,7 @@
         <h2 class="mb-0">الفروع</h2>
     </div>
     <div class="col-md-4 text-end">
-        <a href="{% url 'branch_add' %}" class="btn btn-primary">
+        <a href="{% url 'core:branch_add' %}" class="btn btn-primary">
             <i class="fas fa-plus-circle"></i> إضافة فرع جديد
         </a>
     </div>
@@ -36,7 +36,7 @@
                                 <td>{{ forloop.counter }}</td>
                                 <td>{{ branch.name }}</td>
                                 <td>
-                                    <a href="{% url 'company_detail' branch.company.pk %}">
+                                    <a href="{% url 'core:company_detail' branch.company.pk %}">
                                         {{ branch.company.name }}
                                     </a>
                                 </td>
@@ -45,13 +45,13 @@
                                 <td>{{ branch.manager|default:"-" }}</td>
                                 <td>
                                     <div class="btn-group">
-                                        <a href="{% url 'branch_detail' branch.pk %}" class="btn btn-sm btn-info">
+                                        <a href="{% url 'core:branch_detail' branch.pk %}" class="btn btn-sm btn-info">
                                             <i class="fas fa-eye"></i>
                                         </a>
-                                        <a href="{% url 'branch_edit' branch.pk %}" class="btn btn-sm btn-warning">
+                                        <a href="{% url 'core:branch_edit' branch.pk %}" class="btn btn-sm btn-warning">
                                             <i class="fas fa-edit"></i>
                                         </a>
-                                        <a href="{% url 'branch_delete' branch.pk %}" class="btn btn-sm btn-danger">
+                                        <a href="{% url 'core:branch_delete' branch.pk %}" class="btn btn-sm btn-danger">
                                             <i class="fas fa-trash"></i>
                                         </a>
                                     </div>
@@ -63,7 +63,7 @@
             </div>
         {% else %}
             <div class="alert alert-info">
-                لا توجد فروع مسجلة حتى الآن. <a href="{% url 'branch_add' %}">أضف فرع جديد</a>
+                لا توجد فروع مسجلة حتى الآن. <a href="{% url 'core:branch_add' %}">أضف فرع جديد</a>
             </div>
         {% endif %}
     </div>

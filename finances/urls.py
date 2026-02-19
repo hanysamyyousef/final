@@ -2,6 +2,8 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from . import views, api_views
 
+app_name = 'finances'
+
 router = DefaultRouter()
 router.register(r'expense-categories', api_views.ExpenseCategoryViewSet)
 router.register(r'income-categories', api_views.IncomeCategoryViewSet)
@@ -15,6 +17,7 @@ router.register(r'safe-withdrawals', api_views.SafeWithdrawalViewSet)
 router.register(r'money-transfers', api_views.MoneyTransferViewSet)
 router.register(r'inventory-adjustments', api_views.InventoryAdjustmentViewSet)
 router.register(r'stock-transfers', api_views.StockTransferViewSet)
+router.register(r'opening-balances', api_views.OpeningBalanceViewSet)
 
 urlpatterns = [
     path('api/', include(router.urls)),

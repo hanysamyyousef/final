@@ -7,18 +7,18 @@
     <div class="col-md-8">
         <h2 class="mb-0">{{ store.name }}</h2>
         <p class="text-muted">
-            <a href="{% url 'branch_detail' store.branch.pk %}">{{ store.branch.name }}</a> / 
-            <a href="{% url 'company_detail' store.branch.company.pk %}">{{ store.branch.company.name }}</a>
+            <a href="{% url 'core:branch_detail' store.branch.pk %}">{{ store.branch.name }}</a> / 
+            <a href="{% url 'core:company_detail' store.branch.company.pk %}">{{ store.branch.company.name }}</a>
         </p>
     </div>
     <div class="col-md-4 text-end">
-        <a href="{% url 'store_edit' store.pk %}" class="btn btn-warning">
+        <a href="{% url 'core:store_edit' store.pk %}" class="btn btn-warning">
             <i class="fas fa-edit"></i> تعديل
         </a>
-        <a href="{% url 'store_delete' store.pk %}" class="btn btn-danger">
+        <a href="{% url 'core:store_delete' store.pk %}" class="btn btn-danger">
             <i class="fas fa-trash"></i> حذف
         </a>
-        <a href="{% url 'store_list' %}" class="btn btn-secondary">
+        <a href="{% url 'core:store_list' %}" class="btn btn-secondary">
             <i class="fas fa-arrow-right"></i> العودة للقائمة
         </a>
     </div>
@@ -40,7 +40,7 @@
                         <tr>
                             <th>الفرع</th>
                             <td>
-                                <a href="{% url 'branch_detail' store.branch.pk %}">
+                                <a href="{% url 'core:branch_detail' store.branch.pk %}">
                                     {{ store.branch.name }}
                                 </a>
                             </td>
@@ -48,7 +48,7 @@
                         <tr>
                             <th>الشركة</th>
                             <td>
-                                <a href="{% url 'company_detail' store.branch.company.pk %}">
+                                <a href="{% url 'core:company_detail' store.branch.company.pk %}">
                                     {{ store.branch.company.name }}
                                 </a>
                             </td>

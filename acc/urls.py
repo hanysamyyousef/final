@@ -39,6 +39,7 @@ urlpatterns = [
     path('invoices/', include('invoices.urls')),
     path('employees/', include('employees.urls')),
     path("accounting/", include("accounting.urls")),
+    path("hatchery/", include("hatchery.urls")),
 
     # إضافة مسارات API
     path('api/product/<int:product_id>/info/', product_info_api, name='product_info_api'),

@@ -28,7 +28,7 @@
                 <div class="tab-content p-3" id="accountTabsContent">
                     <!-- المعلومات الشخصية -->
                     <div class="tab-pane fade show active" id="profile" role="tabpanel" aria-labelledby="profile-tab">
-                        <form method="post" action="{% url 'update_profile' %}">
+                        <form method="post" action="{% url 'users:update_profile' %}">
                             {% csrf_token %}
 
                             <div class="row">
@@ -64,7 +64,7 @@
 
                     <!-- تغيير كلمة المرور -->
                     <div class="tab-pane fade" id="password" role="tabpanel" aria-labelledby="password-tab">
-                        <form method="post" action="{% url 'change_password' %}">
+                        <form method="post" action="{% url 'users:change_password' %}">
                             {% csrf_token %}
 
                             <div class="mb-3">
@@ -97,7 +97,7 @@
 
                     <!-- الصورة الشخصية -->
                     <div class="tab-pane fade" id="avatar" role="tabpanel" aria-labelledby="avatar-tab">
-                        <form method="post" action="{% url 'update_avatar' %}" enctype="multipart/form-data">
+                        <form method="post" action="{% url 'users:update_avatar' %}" enctype="multipart/form-data">
                             {% csrf_token %}
 
                             <div class="text-center mb-4">
@@ -122,7 +122,7 @@
 
                     <!-- التفضيلات -->
                     <div class="tab-pane fade" id="preferences" role="tabpanel" aria-labelledby="preferences-tab">
-                        <form method="post" action="{% url 'update_preferences' %}">
+                        <form method="post" action="{% url 'users:update_preferences' %}">
                             {% csrf_token %}
 
                             <div class="mb-3">

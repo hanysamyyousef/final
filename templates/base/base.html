@@ -19,7 +19,7 @@
     <!-- Navbar -->
     <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
         <div class="container">
-            <a class="navbar-brand" href="{% url 'home' %}">
+            <a class="navbar-brand" href="{% url 'core:home' %}">
                 <i class="fas fa-egg me-2"></i>
                 نظام إدارة معامل التفريخ
             </a>
@@ -29,7 +29,7 @@
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav me-auto">
                     <li class="nav-item">
-                        <a class="nav-link {% if request.path == '/' %}active{% endif %}" href="{% url 'home' %}">
+                        <a class="nav-link {% if request.path == '/' %}active{% endif %}" href="{% url 'core:home' %}">
                             <i class="fas fa-home me-1"></i> الرئيسية
                         </a>
                     </li>
@@ -73,12 +73,12 @@
                             <i class="fas fa-users-cog me-1"></i> إدارة النظام
                         </a>
                         <ul class="dropdown-menu">
-                            <li><a class="dropdown-item" href="{% url 'user_list' %}"><i class="fas fa-users me-1"></i> إدارة المستخدمين</a></li>
+                            <li><a class="dropdown-item" href="{% url 'users:user_list' %}"><i class="fas fa-users me-1"></i> إدارة المستخدمين</a></li>
                             {% if user.profile.role == 'admin' %}
-                            <li><a class="dropdown-item" href="{% url 'user_create' %}"><i class="fas fa-user-plus me-1"></i> إضافة مستخدم</a></li>
-                            <li><a class="dropdown-item" href="{% url 'permissions_management' %}"><i class="fas fa-shield-alt me-1"></i> إدارة الصلاحيات</a></li>
+                            <li><a class="dropdown-item" href="{% url 'users:user_create' %}"><i class="fas fa-user-plus me-1"></i> إضافة مستخدم</a></li>
+                            <li><a class="dropdown-item" href="{% url 'users:permissions_management' %}"><i class="fas fa-shield-alt me-1"></i> إدارة الصلاحيات</a></li>
                             <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item" href="{% url 'notifications' %}"><i class="fas fa-bell me-1"></i> الإشعارات</a></li>
+                            <li><a class="dropdown-item" href="{% url 'users:notifications' %}"><i class="fas fa-bell me-1"></i> الإشعارات</a></li>
                             {% endif %}
                         </ul>
                     </li>
@@ -97,7 +97,7 @@
                             <li><hr class="dropdown-divider"></li>
                             {% endif %}
                             <li>
-                                <form method="post" action="{% url 'logout' %}" style="display: inline;">
+                                <form method="post" action="{% url 'users:logout' %}" style="display: inline;">
                                     {% csrf_token %}
                                     <button type="submit" class="dropdown-item" style="border: none; background: none; width: 100%; text-align: right;">
                                         <i class="fas fa-sign-out-alt me-1"></i> تسجيل الخروج
@@ -108,7 +108,7 @@
                     </li>
                     {% else %}
                     <li class="nav-item">
-                        <a class="nav-link" href="{% url 'login' %}">
+                        <a class="nav-link" href="{% url 'users:login' %}">
                             <i class="fas fa-sign-in-alt me-1"></i> تسجيل الدخول
                         </a>
                     </li>

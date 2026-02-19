@@ -1,6 +1,7 @@
 from django.db.models import Sum, Q
 from .models import Account, JournalItem, JournalEntry
 from django.utils import timezone
+from django.utils.translation import gettext_lazy as _
 from decimal import Decimal
 
 class AccountingReports:
@@ -252,64 +253,113 @@ class AccountingReports:
             'data': report_data,
             'total_input_vat': total_input_vat,
             'total_output_vat': total_output_vat,
-            'net_vat': total_output_vat - total_input_vat
+            'net_vat_payable': total_output_vat - total_input_vat
         }
 
     @staticmethod
-    def get_general_ledger(account_id, start_date=None, end_date=None, cost_center_id=None):
-        """تقرير دفتر الأستاذ لحساب معين"""
-        try:
-            account = Account.objects.get(id=account_id)
-        except Account.DoesNotExist:
-            return None
+    def get_contact_balances(contact_type=None):
+        """تقرير أرصدة العملاء والموردين (المديونيات)"""
+        from core.models import Contact
         
-        # 1. حساب الرصيد الافتتاحي (قبل تاريخ البداية)
-        opening_items = JournalItem.objects.filter(account=account, journal_entry__is_posted=True)
-        if start_date:
-            opening_items = opening_items.filter(journal_entry__date__lt=start_date)
-        if cost_center_id:
-            opening_items = opening_items.filter(cost_center_id=cost_center_id)
-            
-        opening_debit = opening_items.aggregate(Sum('debit'))['debit__sum'] or Decimal('0.00')
-        opening_credit = opening_items.aggregate(Sum('credit'))['credit__sum'] or Decimal('0.00')
-        
-        if account.account_type in ['asset', 'expense']:
-            opening_balance = opening_debit - opening_credit
-        else:
-            opening_balance = opening_credit - opening_debit
-            
-        # 2. الحصول على الحركات خلال الفترة
-        items = JournalItem.objects.filter(account=account, journal_entry__is_posted=True).order_by('journal_entry__date', 'id')
-        if start_date:
-            items = items.filter(journal_entry__date__gte=start_date)
-        if end_date:
-            items = items.filter(journal_entry__date__lte=end_date)
-        if cost_center_id:
-            items = items.filter(cost_center_id=cost_center_id)
+        contacts = Contact.objects.all()
+        if contact_type:
+            if contact_type in ['customer', 'supplier']:
+                contacts = contacts.filter(Q(contact_type=contact_type) | Q(contact_type='both'))
+            else:
+                contacts = contacts.filter(contact_type=contact_type)
             
         report_data = []
-        current_balance = opening_balance
+        total_debit = Decimal('0.00')
+        total_credit = Decimal('0.00')
         
-        for item in items:
-            if account.account_type in ['asset', 'expense']:
-                current_balance += (item.debit - item.credit)
-            else:
-                current_balance += (item.credit - item.debit)
+        for contact in contacts:
+            # معالجة رصيد العميل (أو الرصيد الوحيد للأنواع الأخرى)
+            if contact.contact_type in ['customer', 'both']:
+                balance = contact.current_balance
+                if balance != 0:
+                    if balance > 0:
+                        total_debit += balance
+                        report_data.append({
+                            'contact': contact,
+                            'name': f"{contact.name} (عميل)",
+                            'debit': balance,
+                            'credit': 0,
+                            'balance': balance,
+                            'type': 'customer'
+                        })
+                    else:
+                        total_credit += abs(balance)
+                        report_data.append({
+                            'contact': contact,
+                            'name': f"{contact.name} (عميل)",
+                            'debit': 0,
+                            'credit': abs(balance),
+                            'balance': balance,
+                            'type': 'customer'
+                        })
+
+            # معالجة رصيد المورد (للنوع مورد أو كليهما)
+            if contact.contact_type in ['supplier', 'both']:
+                balance = contact.current_supplier_balance if contact.contact_type == 'both' else contact.current_balance
+                if balance != 0:
+                    if balance > 0:
+                        total_debit += balance
+                        report_data.append({
+                            'contact': contact,
+                            'name': f"{contact.name} (مورد)",
+                            'debit': balance,
+                            'credit': 0,
+                            'balance': balance,
+                            'type': 'supplier'
+                        })
+                    else:
+                        total_credit += abs(balance)
+                        report_data.append({
+                            'contact': contact,
+                            'name': f"{contact.name} (مورد)",
+                            'debit': 0,
+                            'credit': abs(balance),
+                            'balance': balance,
+                            'type': 'supplier'
+                        })
                 
-            report_data.append({
-                'id': item.id,
-                'date': item.journal_entry.date,
-                'entry_number': item.journal_entry.entry_number,
-                'description': item.journal_entry.description,
-                'memo': item.memo,
-                'debit': item.debit,
-                'credit': item.credit,
-                'balance': current_balance
-            })
-            
         return {
-            'account': account,
-            'opening_balance': opening_balance,
             'data': report_data,
-            'closing_balance': current_balance
+            'total_debit': total_debit,
+            'total_credit': total_credit,
+            'net_balance': total_debit - total_credit
+        }
+
+    @staticmethod
+    def get_sales_purchase_summary(start_date=None, end_date=None):
+        """تقرير ملخص المبيعات والمشتريات"""
+        from invoices.models import Invoice
+        
+        invoices = Invoice.objects.filter(is_posted=True)
+        if start_date:
+            invoices = invoices.filter(date__gte=start_date)
+        if end_date:
+            invoices = invoices.filter(date__lte=end_date)
+            
+        sales = invoices.filter(invoice_type='sale')
+        purchases = invoices.filter(invoice_type='purchase')
+        
+        sales_summary = sales.aggregate(
+            total_net=Sum('net_amount'),
+            total_paid=Sum('paid_amount'),
+            total_remaining=Sum('remaining_amount'),
+            total_vat=Sum('vat_amount')
+        )
+        
+        purchases_summary = purchases.aggregate(
+            total_net=Sum('net_amount'),
+            total_paid=Sum('paid_amount'),
+            total_remaining=Sum('remaining_amount'),
+            total_vat=Sum('vat_amount')
+        )
+        
+        return {
+            'sales': sales_summary,
+            'purchases': purchases_summary,
+            'period': {'start': start_date, 'end': end_date}
         }

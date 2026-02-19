@@ -8,7 +8,7 @@
         <h2 class="mb-0">الخزن</h2>
     </div>
     <div class="col-md-4 text-end">
-        <a href="{% url 'safe_add' %}" class="btn btn-primary">
+        <a href="{% url 'core:safe_add' %}" class="btn btn-primary">
             <i class="fas fa-plus-circle"></i> إضافة خزنة جديدة
         </a>
     </div>
@@ -36,12 +36,12 @@
                                 <td>{{ forloop.counter }}</td>
                                 <td>{{ safe.name }}</td>
                                 <td>
-                                    <a href="{% url 'branch_detail' safe.branch.pk %}">
+                                    <a href="{% url 'core:branch_detail' safe.branch.pk %}">
                                         {{ safe.branch.name }}
                                     </a>
                                 </td>
                                 <td>
-                                    <a href="{% url 'company_detail' safe.branch.company.pk %}">
+                                    <a href="{% url 'core:company_detail' safe.branch.company.pk %}">
                                         {{ safe.branch.company.name }}
                                     </a>
                                 </td>
@@ -53,13 +53,13 @@
                                 </td>
                                 <td>
                                     <div class="btn-group">
-                                        <a href="{% url 'safe_detail' safe.pk %}" class="btn btn-sm btn-info">
+                                        <a href="{% url 'core:safe_detail' safe.pk %}" class="btn btn-sm btn-info">
                                             <i class="fas fa-eye"></i>
                                         </a>
-                                        <a href="{% url 'safe_edit' safe.pk %}" class="btn btn-sm btn-warning">
+                                        <a href="{% url 'core:safe_edit' safe.pk %}" class="btn btn-sm btn-warning">
                                             <i class="fas fa-edit"></i>
                                         </a>
-                                        <a href="{% url 'safe_delete' safe.pk %}" class="btn btn-sm btn-danger">
+                                        <a href="{% url 'core:safe_delete' safe.pk %}" class="btn btn-sm btn-danger">
                                             <i class="fas fa-trash"></i>
                                         </a>
                                     </div>
@@ -71,7 +71,7 @@
             </div>
         {% else %}
             <div class="alert alert-info">
-                لا توجد خزن مسجلة حتى الآن. <a href="{% url 'safe_add' %}">أضف خزنة جديدة</a>
+                لا توجد خزن مسجلة حتى الآن. <a href="{% url 'core:safe_add' %}">أضف خزنة جديدة</a>
             </div>
         {% endif %}
     </div>

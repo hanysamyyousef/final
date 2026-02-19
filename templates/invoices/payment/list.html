@@ -8,7 +8,7 @@
     <div class="card shadow">
         <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
             <h5 class="mb-0">{{ title|default:"قائمة المدفوعات والتحصيلات" }}</h5>
-            <a href="{% url 'payment_add' %}" class="btn btn-light btn-sm">
+            <a href="{% url 'invoices:payment_add' %}" class="btn btn-light btn-sm">
                 <i class="fas fa-plus"></i> إضافة دفعة جديدة
             </a>
         </div>
@@ -37,22 +37,18 @@
                             <td>{{ payment.safe.name }}</td>
                             <td>{{ payment.amount }}</td>
                             <td>
-                                {% if payment.is_posted %}
-                                <span class="badge bg-success">مرحلة</span>
-                                {% else %}
-                                <span class="badge bg-warning">غير مرحلة</span>
-                                {% endif %}
+                                {{ payment.status_badge }}
                             </td>
                             <td>
-                                <a href="{% url 'payment_detail' payment.id %}" class="btn btn-info btn-sm">
+                                <a href="{% url 'invoices:payment_detail' payment.id %}" class="btn btn-info btn-sm">
                                     <i class="fas fa-eye"></i>
                                 </a>
                                 {% if not payment.is_posted %}
-                                <a href="{% url 'payment_post' payment.id %}" class="btn btn-success btn-sm">
+                                <a href="{% url 'invoices:payment_post' payment.id %}" class="btn btn-success btn-sm">
                                     <i class="fas fa-check"></i>
                                 </a>
                                 {% else %}
-                                <a href="{% url 'payment_unpost' payment.id %}" class="btn btn-warning btn-sm">
+                                <a href="{% url 'invoices:payment_unpost' payment.id %}" class="btn btn-warning btn-sm">
                                     <i class="fas fa-undo"></i>
                                 </a>
                                 {% endif %}

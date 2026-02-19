@@ -34,7 +34,7 @@
             <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
                 <h4 class="card-title mb-0">إدارة المستخدمين</h4>
                 {% if request.user.profile.role == 'admin' %}
-                <a href="{% url 'user_create' %}" class="btn btn-light">
+                <a href="{% url 'users:user_create' %}" class="btn btn-light">
                     <i class="fas fa-plus"></i> إضافة مستخدم جديد
                 </a>
                 {% endif %}
@@ -71,7 +71,7 @@
                             <button type="submit" class="btn btn-outline-primary me-2">
                                 <i class="fas fa-search"></i> بحث
                             </button>
-                            <a href="{% url 'user_list' %}" class="btn btn-outline-secondary">
+                            <a href="{% url 'users:user_list' %}" class="btn btn-outline-secondary">
                                 <i class="fas fa-times"></i> مسح
                             </a>
                         </div>
@@ -157,15 +157,15 @@
                                 </td>
                                 <td>
                                     <div class="btn-group" role="group">
-                                        <a href="{% url 'user_detail' user.id %}" class="btn btn-sm btn-outline-info" title="عرض التفاصيل">
+                                        <a href="{% url 'users:user_detail' user.id %}" class="btn btn-sm btn-outline-info" title="عرض التفاصيل">
                                             <i class="fas fa-eye"></i>
                                         </a>
                                         {% if request.user.profile.role == 'admin' %}
-                                        <a href="{% url 'user_edit' user.id %}" class="btn btn-sm btn-outline-warning" title="تعديل">
+                                        <a href="{% url 'users:user_edit' user.id %}" class="btn btn-sm btn-outline-warning" title="تعديل">
                                             <i class="fas fa-edit"></i>
                                         </a>
                                         {% if user != request.user %}
-                                        <a href="{% url 'user_delete' user.id %}" class="btn btn-sm btn-outline-danger"
+                                        <a href="{% url 'users:user_delete' user.id %}" class="btn btn-sm btn-outline-danger"
                                            title="حذف" onclick="return confirm('هل أنت متأكد من حذف هذا المستخدم؟')">
                                             <i class="fas fa-trash"></i>
                                         </a>
@@ -198,7 +198,7 @@ $(document).ready(function() {
         const userId = $(this).data('user-id');
         const newRole = $(this).val();
 
-        $.post('{% url "change_user_role" 0 %}'.replace('0', userId), {
+        $.post('{% url "users:change_user_role" 0 %}'.replace('0', userId), {
             'role': newRole,
             'csrfmiddlewaretoken': $('[name=csrfmiddlewaretoken]').val()
         })
@@ -220,7 +220,7 @@ $(document).ready(function() {
         const statusText = $(this).closest('td').find('.status-text');
         const checkbox = $(this);
 
-        $.post('{% url "toggle_user_status" 0 %}'.replace('0', userId), {
+        $.post('{% url "users:toggle_user_status" 0 %}'.replace('0', userId), {
             'csrfmiddlewaretoken': $('[name=csrfmiddlewaretoken]').val()
         })
         .done(function(data) {

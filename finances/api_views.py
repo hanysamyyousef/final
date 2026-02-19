@@ -6,13 +6,13 @@ from .models import (
     ExpenseCategory, IncomeCategory, SafeTransaction, 
     ContactTransaction, ProductTransaction, Expense, Income,
     SafeDeposit, SafeWithdrawal, MoneyTransfer,
-    InventoryAdjustment, StockTransfer
+    InventoryAdjustment, StockTransfer, OpeningBalance
 )
 from .serializers import (
     ExpenseCategorySerializer, IncomeCategorySerializer, SafeTransactionSerializer,
     ContactTransactionSerializer, ProductTransactionSerializer, ExpenseSerializer, IncomeSerializer,
     SafeDepositSerializer, SafeWithdrawalSerializer, MoneyTransferSerializer,
-    InventoryAdjustmentSerializer, StockTransferSerializer
+    InventoryAdjustmentSerializer, StockTransferSerializer, OpeningBalanceSerializer
 )
 
 class ExpenseCategoryViewSet(viewsets.ModelViewSet):
@@ -104,5 +104,20 @@ class StockTransferViewSet(viewsets.ModelViewSet):
         try:
             transfer.post_transfer()
             return Response({'status': 'Transfer posted successfully'})
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+class OpeningBalanceViewSet(viewsets.ModelViewSet):
+    queryset = OpeningBalance.objects.all().order_by('-date')
+    serializer_class = OpeningBalanceSerializer
+    permission_classes = [IsAuthenticated]
+
+    @action(detail=True, methods=['post'])
+    def post_opening_balance(self, request, pk=None):
+        opening_balance = self.get_object()
+        try:
+            if opening_balance.post_opening_balance():
+                return Response({'status': 'Opening balance posted successfully'})
+            return Response({'error': 'Opening balance already posted'}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)

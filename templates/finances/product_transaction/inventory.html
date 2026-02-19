@@ -8,7 +8,7 @@
         <h2 class="mb-0">المخزون</h2>
     </div>
     <div class="col-md-4 text-end">
-        <a href="{% url 'product_transaction_add' %}" class="btn btn-primary">
+        <a href="{% url 'finances:product_transaction_add' %}" class="btn btn-primary">
             <i class="fas fa-plus-circle"></i> إضافة حركة جديدة
         </a>
     </div>
@@ -62,7 +62,7 @@
                 <button type="submit" class="btn btn-primary">
                     <i class="fas fa-search"></i> بحث
                 </button>
-                <a href="{% url 'product_inventory' %}" class="btn btn-secondary">
+                <a href="{% url 'finances:product_inventory' %}" class="btn btn-secondary">
                     <i class="fas fa-redo"></i> إعادة تعيين
                 </a>
             </div>
@@ -95,14 +95,14 @@
                                 <td>{{ product.code|default:"-" }}</td>
                                 <td>
                                     {% if product.category %}
-                                        <a href="{% url 'category_detail' product.category.pk %}">{{ product.category.name }}</a>
+                                        <a href="{% url 'products:category_detail' product.category.pk %}">{{ product.category.name }}</a>
                                     {% else %}
                                         -
                                     {% endif %}
                                 </td>
                                 <td>
                                     {% if product.default_store %}
-                                        <a href="{% url 'store_detail' product.default_store.pk %}">{{ product.default_store.name }}</a>
+                                        <a href="{% url 'core:store_detail' product.default_store.pk %}">{{ product.default_store.name }}</a>
                                     {% else %}
                                         -
                                     {% endif %}
@@ -121,13 +121,13 @@
                                 </td>
                                 <td>
                                     <div class="btn-group">
-                                        <a href="{% url 'product_detail' product.pk %}" class="btn btn-sm btn-info">
+                                        <a href="{% url 'products:product_detail' product.pk %}" class="btn btn-sm btn-info">
                                             <i class="fas fa-eye"></i>
                                         </a>
-                                        <a href="{% url 'product_movement_report' product.pk %}" class="btn btn-sm btn-primary">
+                                        <a href="{% url 'finances:product_movement_report' product.pk %}" class="btn btn-sm btn-primary">
                                             <i class="fas fa-chart-line"></i>
                                         </a>
-                                        <a href="{% url 'product_transaction_add' %}?product={{ product.pk }}" class="btn btn-sm btn-success">
+                                        <a href="{% url 'finances:product_transaction_add' %}?product={{ product.pk }}" class="btn btn-sm btn-success">
                                             <i class="fas fa-plus"></i>
                                         </a>
                                     </div>
@@ -139,7 +139,7 @@
             </div>
         {% else %}
             <div class="alert alert-info">
-                لا توجد منتجات مسجلة حتى الآن. <a href="{% url 'product_add' %}">أضف منتج جديد</a>
+                لا توجد منتجات مسجلة حتى الآن. <a href="{% url 'products:product_add' %}">أضف منتج جديد</a>
             </div>
         {% endif %}
     </div>

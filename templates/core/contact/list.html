@@ -62,13 +62,13 @@
                                 <td>{{ contact.credit_limit }}</td>
                                 <td>
                                     <div class="btn-group">
-                                        <a href="{% url 'contact_detail' contact.pk %}" class="btn btn-sm btn-info">
+                                        <a href="{% url 'core:contact_detail' contact.pk %}" class="btn btn-sm btn-info">
                                             <i class="fas fa-eye"></i>
                                         </a>
-                                        <a href="{% url 'contact_edit' contact.pk %}" class="btn btn-sm btn-warning">
+                                        <a href="{% url 'core:contact_edit' contact.pk %}" class="btn btn-sm btn-warning">
                                             <i class="fas fa-edit"></i>
                                         </a>
-                                        <a href="{% url 'contact_delete' contact.pk %}" class="btn btn-sm btn-danger">
+                                        <a href="{% url 'core:contact_delete' contact.pk %}" class="btn btn-sm btn-danger">
                                             <i class="fas fa-trash"></i>
                                         </a>
                                     </div>
@@ -81,11 +81,11 @@
         {% else %}
             <div class="alert alert-info">
                 {% if contact_type == 'customers' %}
-                    لا يوجد عملاء مسجلين حتى الآن. <a href="{% url 'customer_add' %}">أضف عميل جديد</a>
+                    لا يوجد عملاء مسجلين حتى الآن. <a href="{% url 'core:customer_add' %}">أضف عميل جديد</a>
                 {% elif contact_type == 'suppliers' %}
-                    لا يوجد موردين مسجلين حتى الآن. <a href="{% url 'supplier_add' %}">أضف مورد جديد</a>
+                    لا يوجد موردين مسجلين حتى الآن. <a href="{% url 'core:supplier_add' %}">أضف مورد جديد</a>
                 {% else %}
-                    لا توجد جهات اتصال مسجلة حتى الآن. <a href="{% url 'contact_add' %}">أضف جهة اتصال جديدة</a>
+                    لا توجد جهات اتصال مسجلة حتى الآن. <a href="{% url 'core:contact_add' %}">أضف جهة اتصال جديدة</a>
                 {% endif %}
             </div>
         {% endif %}

@@ -20,7 +20,7 @@
                 <h4>{{ user.get_full_name|default:user.username }}</h4>
                 <p class="text-muted">{{ user.email }}</p>
                 <p>عضو منذ: {{ user.date_joined|date:"d/m/Y" }}</p>
-                <a href="{% url 'account_settings' %}" class="btn btn-outline-primary">تعديل الملف الشخصي</a>
+                <a href="{% url 'users:account_settings' %}" class="btn btn-outline-primary">تعديل الملف الشخصي</a>
             </div>
         </div>
 

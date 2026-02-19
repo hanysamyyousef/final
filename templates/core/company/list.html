@@ -10,7 +10,7 @@
     </div>
     <div class="col-md-4 text-end">
         {% if user|has_permission:"create_company" %}
-        <a href="{% url 'company_add' %}" class="btn btn-primary">
+        <a href="{% url 'core:company_add' %}" class="btn btn-primary">
             <i class="fas fa-plus-circle"></i> إضافة شركة جديدة
         </a>
         {% endif %}
@@ -54,16 +54,16 @@
                                 <td>{{ company.tax_number|default:"-" }}</td>
                                 <td>
                                     <div class="btn-group">
-                                        <a href="{% url 'company_detail' company.pk %}" class="btn btn-sm btn-info" title="عرض التفاصيل">
+                                        <a href="{% url 'core:company_detail' company.pk %}" class="btn btn-sm btn-info" title="عرض التفاصيل">
                                             <i class="fas fa-eye"></i>
                                         </a>
                                         {% if user|has_permission:"edit_company" %}
-                                        <a href="{% url 'company_edit' company.pk %}" class="btn btn-sm btn-warning" title="تعديل">
+                                        <a href="{% url 'core:company_edit' company.pk %}" class="btn btn-sm btn-warning" title="تعديل">
                                             <i class="fas fa-edit"></i>
                                         </a>
                                         {% endif %}
                                         {% if user|has_permission:"delete_company" %}
-                                        <a href="{% url 'company_delete' company.pk %}" class="btn btn-sm btn-danger" title="حذف"
+                                        <a href="{% url 'core:company_delete' company.pk %}" class="btn btn-sm btn-danger" title="حذف"
                                            onclick="return confirm('هل أنت متأكد من حذف هذه الشركة؟')">
                                             <i class="fas fa-trash"></i>
                                         </a>
@@ -77,7 +77,7 @@
             </div>
         {% else %}
             <div class="alert alert-info">
-                لا توجد شركات مسجلة حتى الآن. <a href="{% url 'company_add' %}">أضف شركة جديدة</a>
+                لا توجد شركات مسجلة حتى الآن. <a href="{% url 'core:company_add' %}">أضف شركة جديدة</a>
             </div>
         {% endif %}
     </div>

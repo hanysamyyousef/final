@@ -47,16 +47,16 @@
                 </table>
                 
                 <form method="post">
-                    {% csrf_token %}
-                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
-                        <button type="submit" class="btn btn-danger">
-                            <i class="fas fa-trash"></i> تأكيد الحذف
-                        </button>
-                        <a href="{% url 'company_detail' company.pk %}" class="btn btn-secondary">
-                            <i class="fas fa-times"></i> إلغاء
-                        </a>
-                    </div>
-                </form>
+                        {% csrf_token %}
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                            <button type="submit" class="btn btn-danger">
+                                <i class="fas fa-trash"></i> تأكيد الحذف
+                            </button>
+                            <a href="{% url 'core:company_detail' company.pk %}" class="btn btn-secondary">
+                                <i class="fas fa-times"></i> إلغاء
+                            </a>
+                        </div>
+                    </form>
             </div>
         </div>
     </div>

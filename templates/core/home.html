@@ -32,10 +32,10 @@
                     </div>
                 </div>
                 <div class="d-grid gap-2">
-                    <a href="{% url 'company_list' %}" class="btn btn-outline-primary">
+                    <a href="{% url 'core:company_list' %}" class="btn btn-outline-primary">
                         <i class="fas fa-building"></i> إدارة الشركات
                     </a>
-                    <a href="{% url 'branch_list' %}" class="btn btn-outline-primary">
+                    <a href="{% url 'core:branch_list' %}" class="btn btn-outline-primary">
                         <i class="fas fa-code-branch"></i> إدارة الفروع
                     </a>
                 </div>
@@ -60,10 +60,10 @@
                     </div>
                 </div>
                 <div class="d-grid gap-2">
-                    <a href="{% url 'store_list' %}" class="btn btn-outline-success">
+                    <a href="{% url 'core:store_list' %}" class="btn btn-outline-success">
                         <i class="fas fa-warehouse"></i> إدارة المخازن
                     </a>
-                    <a href="{% url 'safe_list' %}" class="btn btn-outline-success">
+                    <a href="{% url 'core:safe_list' %}" class="btn btn-outline-success">
                         <i class="fas fa-money-check-alt"></i> إدارة الخزن
                     </a>
                 </div>
@@ -88,10 +88,10 @@
                     </div>
                 </div>
                 <div class="d-grid gap-2">
-                    <a href="{% url 'representative_list' %}" class="btn btn-outline-info">
+                    <a href="{% url 'core:representative_list' %}" class="btn btn-outline-info">
                         <i class="fas fa-user-tie"></i> إدارة المناديب
                     </a>
-                    <a href="{% url 'driver_list' %}" class="btn btn-outline-info">
+                    <a href="{% url 'core:driver_list' %}" class="btn btn-outline-info">
                         <i class="fas fa-truck"></i> إدارة السائقين
                     </a>
                 </div>
@@ -116,10 +116,10 @@
                     </div>
                 </div>
                 <div class="d-grid gap-2">
-                    <a href="{% url 'customer_list' %}" class="btn btn-outline-warning">
+                    <a href="{% url 'core:customer_list' %}" class="btn btn-outline-warning">
                         <i class="fas fa-users"></i> إدارة العملاء
                     </a>
-                    <a href="{% url 'supplier_list' %}" class="btn btn-outline-warning">
+                    <a href="{% url 'core:supplier_list' %}" class="btn btn-outline-warning">
                         <i class="fas fa-truck-loading"></i> إدارة الموردين
                     </a>
                 </div>
@@ -146,13 +146,13 @@
                     </div>
                 </div>
                 <div class="d-grid gap-2">
-                    <a href="{% url 'product_list' %}" class="btn btn-outline-danger">
+                    <a href="{% url 'products:product_list' %}" class="btn btn-outline-danger">
                         <i class="fas fa-box"></i> إدارة المنتجات
                     </a>
-                    <a href="{% url 'category_list' %}" class="btn btn-outline-danger">
+                    <a href="{% url 'products:category_list' %}" class="btn btn-outline-danger">
                         <i class="fas fa-tags"></i> إدارة التصنيفات
                     </a>
-                    <a href="{% url 'unit_list' %}" class="btn btn-outline-danger">
+                    <a href="{% url 'products:unit_list' %}" class="btn btn-outline-danger">
                         <i class="fas fa-ruler"></i> إدارة وحدات القياس
                     </a>
                 </div>
@@ -177,16 +177,16 @@
                     </div>
                 </div>
                 <div class="d-grid gap-2">
-                    <a href="{% url 'sale_invoice_list' %}" class="btn btn-outline-secondary">
+                    <a href="{% url 'invoices:sale_invoice_list' %}" class="btn btn-outline-secondary">
                         <i class="fas fa-file-invoice-dollar"></i> فواتير البيع
                     </a>
-                    <a href="{% url 'purchase_invoice_list' %}" class="btn btn-outline-secondary">
+                    <a href="{% url 'invoices:purchase_invoice_list' %}" class="btn btn-outline-secondary">
                         <i class="fas fa-file-invoice"></i> فواتير الشراء
                     </a>
-                    <a href="{% url 'sale_return_invoice_list' %}" class="btn btn-outline-secondary">
+                    <a href="{% url 'invoices:sale_return_invoice_list' %}" class="btn btn-outline-secondary">
                         <i class="fas fa-undo-alt"></i> مرتجعات البيع
                     </a>
-                    <a href="{% url 'purchase_return_invoice_list' %}" class="btn btn-outline-secondary">
+                    <a href="{% url 'invoices:purchase_return_invoice_list' %}" class="btn btn-outline-secondary">
                         <i class="fas fa-undo"></i> مرتجعات الشراء
                     </a>
                 </div>
@@ -207,13 +207,13 @@
                     <a href="#" class="list-group-item list-group-item-action">
                         <i class="fas fa-chart-bar"></i> تقرير المشتريات
                     </a>
-                    <a href="{% url 'product_inventory' %}" class="list-group-item list-group-item-action">
+                    <a href="{% url 'finances:product_inventory' %}" class="list-group-item list-group-item-action">
                         <i class="fas fa-chart-pie"></i> تقرير المخزون
                     </a>
-                    <a href="{% url 'product_transaction_list' %}" class="list-group-item list-group-item-action">
+                    <a href="{% url 'finances:product_transaction_list' %}" class="list-group-item list-group-item-action">
                         <i class="fas fa-exchange-alt"></i> حركات المخزون
                     </a>
-                    <a href="{% url 'store_permit_list' %}" class="list-group-item list-group-item-action">
+                    <a href="{% url 'finances:store_permit_list' %}" class="list-group-item list-group-item-action">
                         <i class="fas fa-clipboard-list"></i> أذونات المخزن
                     </a>
                     <a href="#" class="list-group-item list-group-item-action">

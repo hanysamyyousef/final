@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <h2 class="text-primary"><i class="fas fa-chart-line me-2"></i>{% trans "مركز التقارير المالية" %}</h2>
+            <p class="text-muted">{% trans "اختر التقرير المطلوب لاستعراض البيانات المالية والإحصائية." %}</p>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- التقارير المحاسبية الأساسية -->
+        <div class="col-md-6 mb-4">
+            <div class="card h-100 shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="fas fa-book-open me-2"></i>{% trans "التقارير المحاسبية" %}</h5>
+                </div>
+                <div class="card-body">
+                    <div class="list-group list-group-flush">
+                        <a href="{% url 'accounting:trial_balance' %}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                            <div>
+                                <i class="fas fa-balance-scale text-primary me-2"></i>
+                                <strong>{% trans "ميزان المراجعة" %}</strong>
+                                <div class="small text-muted">{% trans "مراجعة أرصدة جميع الحسابات المدينة والدائنة." %}</div>
+                            </div>
+                            <i class="fas fa-chevron-left text-muted"></i>
+                        </a>
+                        <a href="{% url 'accounting:profit_loss' %}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                            <div>
+                                <i class="fas fa-chart-pie text-success me-2"></i>
+                                <strong>{% trans "قائمة الدخل" %}</strong>
+                                <div class="small text-muted">{% trans "تحليل الإيرادات والمصروفات وصافي الربح." %}</div>
+                            </div>
+                            <i class="fas fa-chevron-left text-muted"></i>
+                        </a>
+                        <a href="{% url 'accounting:balance_sheet' %}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                            <div>
+                                <i class="fas fa-university text-info me-2"></i>
+                                <strong>{% trans "الميزانية العمومية" %}</strong>
+                                <div class="small text-muted">{% trans "بيان الأصول والخصوم وحقوق الملكية." %}</div>
+                            </div>
+                            <i class="fas fa-chevron-left text-muted"></i>
+                        </a>
+                        <a href="{% url 'accounting:vat_report' %}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                            <div>
+                                <i class="fas fa-percentage text-danger me-2"></i>
+                                <strong>{% trans "تقرير الضريبة (VAT)" %}</strong>
+                                <div class="small text-muted">{% trans "ملخص الضريبة المستحقة والمستردة." %}</div>
+                            </div>
+                            <i class="fas fa-chevron-left text-muted"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- تقارير المبيعات والموردين والمديونيات -->
+        <div class="col-md-6 mb-4">
+            <div class="card h-100 shadow-sm border-primary">
+                <div class="card-header bg-dark text-white">
+                    <h5 class="mb-0"><i class="fas fa-users me-2"></i>{% trans "تقارير العمليات والمديونيات" %}</h5>
+                </div>
+                <div class="card-body">
+                    <div class="list-group list-group-flush">
+                        <a href="{% url 'accounting:contact_balances' %}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center bg-light">
+                            <div>
+                                <i class="fas fa-file-invoice-dollar text-primary me-2"></i>
+                                <strong class="text-primary">{% trans "أرصدة المديونيات" %}</strong>
+                                <span class="badge bg-warning text-dark ms-2">{% trans "جديد" %}</span>
+                                <div class="small text-muted">{% trans "كشف بأرصدة جميع العملاء والموردين الحالية." %}</div>
+                            </div>
+                            <i class="fas fa-chevron-left text-muted"></i>
+                        </a>
+                        <a href="{% url 'accounting:sales_purchase_summary' %}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                            <div>
+                                <i class="fas fa-shopping-cart text-success me-2"></i>
+                                <strong>{% trans "ملخص المبيعات والمشتريات" %}</strong>
+                                <span class="badge bg-warning text-dark ms-2">{% trans "جديد" %}</span>
+                                <div class="small text-muted">{% trans "إجمالي العمليات، المبالغ المدفوعة والمتبقية." %}</div>
+                            </div>
+                            <i class="fas fa-chevron-left text-muted"></i>
+                        </a>
+                        <a href="{% url 'finances:financial_transactions_report' %}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                            <div>
+                                <i class="fas fa-money-bill-wave text-info me-2"></i>
+                                <strong>{% trans "حركة الخزينة" %}</strong>
+                                <div class="small text-muted">{% trans "سجل المقبوضات والمدفوعات النقدية." %}</div>
+                            </div>
+                            <i class="fas fa-chevron-left text-muted"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .list-group-item {
+        padding: 1.25rem 1rem;
+        transition: all 0.2s;
+    }
+    .list-group-item:hover {
+        background-color: #f8f9fa;
+        transform: translateX(-5px);
+    }
+    .me-2 { margin-left: 0.5rem !important; margin-right: 0 !important; }
+    body[dir="rtl"] .list-group-item:hover {
+        transform: translateX(5px);
+    }
+</style>
+{% endblock %}

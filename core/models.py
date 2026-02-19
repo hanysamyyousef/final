@@ -113,10 +113,12 @@ class Driver(models.Model):
 class Contact(models.Model):
     CUSTOMER = 'customer'
     SUPPLIER = 'supplier'
+    BOTH = 'both'
 
     CONTACT_TYPE_CHOICES = [
         (CUSTOMER, _("عميل")),
         (SUPPLIER, _("مورد")),
+        (BOTH, _("عميل ومورد")),
     ]
 
     name = models.CharField(_("الاسم"), max_length=255)
@@ -148,12 +150,22 @@ class Contact(models.Model):
     initial_balance = models.DecimalField(_("الرصيد الافتتاحي"), max_digits=15, decimal_places=2, default=0)
     initial_balance_date = models.DateField(_("تاريخ الرصيد الافتتاحي"), blank=True, null=True)
     initial_balance_type = models.CharField(_("نوع الرصيد الافتتاحي"), max_length=10, choices=BALANCE_TYPE_CHOICES, default=DEBIT)
+    
+    # حقول إضافية للنوع "كليهما"
+    initial_supplier_balance = models.DecimalField(_("الرصيد الافتتاحي للمورد"), max_digits=15, decimal_places=2, default=0)
+    initial_supplier_balance_type = models.CharField(_("نوع الرصيد الافتتاحي للمورد"), max_length=10, choices=BALANCE_TYPE_CHOICES, default=CREDIT)
+
     pricing_system = models.CharField(_("نظام التسعير"), max_length=20, choices=PRICING_SYSTEM_CHOICES, default=RETAIL)
-    current_balance = models.DecimalField(_("الرصيد الحالي"), max_digits=15, decimal_places=2, default=0)
+    current_balance = models.DecimalField(_("الرصيد الحالي (عميل)"), max_digits=15, decimal_places=2, default=0)
+    current_supplier_balance = models.DecimalField(_("الرصيد الحالي (مورد)"), max_digits=15, decimal_places=2, default=0)
+    
     credit_limit = models.DecimalField(_("حد الائتمان"), max_digits=15, decimal_places=2, default=0)
     notes = models.TextField(_("ملاحظات"), blank=True, null=True)
-    # ربط جهة الاتصال بحساب في شجرة الحسابات
-    account = models.OneToOneField('accounting.Account', on_delete=models.PROTECT, null=True, blank=True, related_name='contact', verbose_name=_("حساب الأستاذ"))
+    
+    # ربط جهة الاتصال بحسابات في شجرة الحسابات
+    account = models.OneToOneField('accounting.Account', on_delete=models.PROTECT, null=True, blank=True, related_name='contact', verbose_name=_("حساب الأستاذ (قديم)"))
+    customer_account = models.OneToOneField('accounting.Account', on_delete=models.PROTECT, null=True, blank=True, related_name='contact_as_customer', verbose_name=_("حساب العميل"))
+    supplier_account = models.OneToOneField('accounting.Account', on_delete=models.PROTECT, null=True, blank=True, related_name='contact_as_supplier', verbose_name=_("حساب المورد"))
 
     class Meta:
         verbose_name = _("جهة اتصال")
@@ -184,6 +196,7 @@ class SystemSettings(models.Model):
     DUPLICATE_ITEM_CHOICES = [
         ('allow_duplicate', _('السماح بتكرار الصنف في بنود الفاتورة')),
         ('increase_quantity', _('زيادة الكمية تلقائياً عند تكرار الصنف')),
+        ('prevent_duplicate', _('منع تكرار الصنف في الفاتورة')),
     ]
 
     duplicate_item_handling = models.CharField(_("التعامل مع تكرار الصنف"), max_length=20,
@@ -195,11 +208,11 @@ class SystemSettings(models.Model):
     default_customer = models.ForeignKey(Contact, on_delete=models.SET_NULL, null=True, blank=True,
                                        related_name='default_customer_settings',
                                        verbose_name=_("العميل الافتراضي لفواتير البيع"),
-                                       limit_choices_to={'contact_type': 'customer'})
+                                       limit_choices_to={'contact_type__in': ['customer', 'both']})
     default_supplier = models.ForeignKey(Contact, on_delete=models.SET_NULL, null=True, blank=True,
                                        related_name='default_supplier_settings',
                                        verbose_name=_("المورد الافتراضي لفواتير الشراء"),
-                                       limit_choices_to={'contact_type': 'supplier'})
+                                       limit_choices_to={'contact_type__in': ['supplier', 'both']})
     default_safe = models.ForeignKey(Safe, on_delete=models.SET_NULL, null=True, blank=True,
                                    related_name='default_safe_settings',
                                    verbose_name=_("الخزنة الافتراضية"))
@@ -226,6 +239,39 @@ class SystemSettings(models.Model):
                                                related_name='settings_salaries', verbose_name=_("حساب الرواتب والأجور"))
     default_loans_account = models.ForeignKey('accounting.Account', on_delete=models.SET_NULL, null=True, blank=True,
                                             related_name='settings_loans', verbose_name=_("حساب سلف الموظفين"))
+    
+    # إعدادات إضافية للتوجيه
+    default_customer_account = models.ForeignKey('accounting.Account', on_delete=models.SET_NULL, null=True, blank=True,
+                                               related_name='settings_customer_default', verbose_name=_("حساب العملاء الافتراضي"))
+    default_discount_allowed_account = models.ForeignKey('accounting.Account', on_delete=models.SET_NULL, null=True, blank=True,
+                                                       related_name='settings_discount_allowed', verbose_name=_("حساب الخصم المسموح به"))
+    default_adjustment_account = models.ForeignKey('accounting.Account', on_delete=models.SET_NULL, null=True, blank=True,
+                                                 related_name='settings_adjustment', verbose_name=_("حساب تسوية المبيعات"))
+    product_sales_account = models.ForeignKey('accounting.Account', on_delete=models.SET_NULL, null=True, blank=True,
+                                            related_name='settings_product_sales', verbose_name=_("حساب مبيعات المنتجات"))
+    sales_return_account = models.ForeignKey('accounting.Account', on_delete=models.SET_NULL, null=True, blank=True,
+                                           related_name='settings_sales_return', verbose_name=_("حساب مرتجعات المبيعات"))
+    
+    default_supplier_account = models.ForeignKey('accounting.Account', on_delete=models.SET_NULL, null=True, blank=True,
+                                               related_name='settings_supplier_default', verbose_name=_("حساب الموردين الافتراضي"))
+    default_discount_earned_account = models.ForeignKey('accounting.Account', on_delete=models.SET_NULL, null=True, blank=True,
+                                                      related_name='settings_discount_earned', verbose_name=_("حساب الخصم المكتسب"))
+    default_purchase_adjustment_account = models.ForeignKey('accounting.Account', on_delete=models.SET_NULL, null=True, blank=True,
+                                                          related_name='settings_purchase_adjustment', verbose_name=_("حساب تسوية المشتريات"))
+    purchase_returns_account = models.ForeignKey('accounting.Account', on_delete=models.SET_NULL, null=True, blank=True,
+                                               related_name='settings_purchase_returns', verbose_name=_("حساب مرتجعات المشتريات"))
+    damaged_account = models.ForeignKey('accounting.Account', on_delete=models.SET_NULL, null=True, blank=True,
+                                       related_name='settings_damaged', verbose_name=_("حساب التالف"))
+    
+    inventory_account = models.ForeignKey('accounting.Account', on_delete=models.SET_NULL, null=True, blank=True,
+                                        related_name='settings_inventory', verbose_name=_("حساب المخزون العام"))
+    default_safe_account = models.ForeignKey('accounting.Account', on_delete=models.SET_NULL, null=True, blank=True,
+                                           related_name='settings_safe_default', verbose_name=_("حساب الخزائن العام"))
+    default_bank_account = models.ForeignKey('accounting.Account', on_delete=models.SET_NULL, null=True, blank=True,
+                                           related_name='settings_bank_default', verbose_name=_("حساب البنوك العام"))
+    default_warehouse_account = models.ForeignKey('accounting.Account', on_delete=models.SET_NULL, null=True, blank=True,
+                                                related_name='settings_warehouse_default', verbose_name=_("حساب المستودعات العام"))
+    
     vat_percentage = models.DecimalField(_("نسبة ضريبة القيمة المضافة (%)"), max_digits=5, decimal_places=2, default=5.0)
 
     # إعدادات الأصول الثابتة
@@ -243,6 +289,20 @@ class SystemSettings(models.Model):
     
     # إعدادات القيود والموافقة
     require_journal_approval = models.BooleanField(_("طلب الموافقة على القيود اليدوية"), default=False)
+    show_tax_in_journal = models.BooleanField(_("عرض الضريبة في القيود اليومية"), default=True)
+    show_cost_center_in_journal = models.BooleanField(_("عرض مركز التكلفة في القيود اليومية"), default=False)
+    assign_tags_to_entries = models.BooleanField(_("تعيين وسوم إلى حركات القيود"), default=False)
+    update_currency_rates_automatically = models.BooleanField(_("تحديث أسعار العملات تلقائياً"), default=False)
+    
+    # إعدادات الحسابات لكل بند
+    per_item_account_in_invoices = models.BooleanField(_("تحديد حساب لكل بند في الفواتير"), default=False)
+    per_item_account_in_purchases = models.BooleanField(_("تحديد حساب لكل بند في المشتريات"), default=False)
+    per_item_account_in_inventory_permits = models.BooleanField(_("تحديد حساب لكل بند في الأذون المخزنية"), default=False)
+    
+    # إعدادات توزيع مراكز التكلفة
+    distribute_cost_center_per_item_in_invoices = models.BooleanField(_("توزيع مراكز التكلفة في الفواتير حسب البند"), default=False)
+    distribute_cost_center_per_item_in_purchases = models.BooleanField(_("توزيع مراكز التكلفة في فواتير الشراء حسب البند"), default=False)
+    distribute_cost_center_per_item_in_inventory_permits = models.BooleanField(_("توزيع مراكز التكلفة في الأذون المخزنية حسب البند"), default=False)
 
     # إعدادات طباعة الفاتورة
     hide_company_info = models.BooleanField(_("إخفاء بيانات الشركة في الفاتورة"), default=False)

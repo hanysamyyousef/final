@@ -8,7 +8,7 @@
         <h2 class="mb-0">وحدات القياس</h2>
     </div>
     <div class="col-md-4 text-end">
-        <a href="{% url 'unit_add' %}" class="btn btn-primary">
+        <a href="{% url 'products:unit_add' %}" class="btn btn-primary">
             <i class="fas fa-plus-circle"></i> إضافة وحدة جديدة
         </a>
     </div>
@@ -35,10 +35,10 @@
                                 <td>{{ unit.symbol }}</td>
                                 <td>
                                     <div class="btn-group">
-                                        <a href="{% url 'unit_edit' unit.pk %}" class="btn btn-sm btn-warning">
+                                        <a href="{% url 'products:unit_edit' unit.pk %}" class="btn btn-sm btn-warning">
                                             <i class="fas fa-edit"></i>
                                         </a>
-                                        <a href="{% url 'unit_delete' unit.pk %}" class="btn btn-sm btn-danger">
+                                        <a href="{% url 'products:unit_delete' unit.pk %}" class="btn btn-sm btn-danger">
                                             <i class="fas fa-trash"></i>
                                         </a>
                                     </div>
@@ -50,7 +50,7 @@
             </div>
         {% else %}
             <div class="alert alert-info">
-                لا توجد وحدات قياس مسجلة حتى الآن. <a href="{% url 'unit_add' %}">أضف وحدة جديدة</a>
+                لا توجد وحدات قياس مسجلة حتى الآن. <a href="{% url 'products:unit_add' %}">أضف وحدة جديدة</a>
             </div>
         {% endif %}
     </div>

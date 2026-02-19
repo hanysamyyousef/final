@@ -1,0 +1,202 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block content %}
+<div class="p-6 max-w-6xl mx-auto">
+    <header class="mb-8">
+        <a href="{% url 'accounting:journal_entry_list' %}" class="inline-flex items-center gap-2 text-gray-500 hover:text-blue-600 transition-colors mb-4">
+            <i class="fas fa-arrow-right"></i>
+            <span>العودة لقائمة القيود</span>
+        </a>
+        <h1 class="text-3xl font-black text-gray-800">{{ title }}</h1>
+    </header>
+
+    <form method="post" id="entry-form">
+        {% csrf_token %}
+        
+        <!-- Header Info -->
+        <div class="bg-white rounded-[2.5rem] border border-gray-100 shadow-sm p-8 mb-6">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div class="space-y-2">
+                    <label class="block text-sm font-bold text-gray-700">{{ form.entry_number.label }}</label>
+                    {{ form.entry_number }}
+                    {% if form.entry_number.errors %}
+                    <p class="text-rose-500 text-xs">{{ form.entry_number.errors.0 }}</p>
+                    {% endif %}
+                </div>
+                <div class="space-y-2">
+                    <label class="block text-sm font-bold text-gray-700">{{ form.date.label }}</label>
+                    {{ form.date }}
+                    {% if form.date.errors %}
+                    <p class="text-rose-500 text-xs">{{ form.date.errors.0 }}</p>
+                    {% endif %}
+                </div>
+                <div class="space-y-2">
+                    <label class="block text-sm font-bold text-gray-700">{{ form.reference.label }}</label>
+                    {{ form.reference }}
+                </div>
+            </div>
+            <div class="mt-4 space-y-2">
+                <label class="block text-sm font-bold text-gray-700">{{ form.description.label }}</label>
+                {{ form.description }}
+            </div>
+        </div>
+
+        <!-- Items Formset -->
+        <div class="bg-white rounded-[2.5rem] border border-gray-100 shadow-sm overflow-hidden mb-6">
+            <div class="bg-gray-50 p-4 border-b flex justify-between items-center">
+                <h3 class="font-black text-gray-700">بنود القيد</h3>
+                <span id="balance-badge" class="px-4 py-2 bg-rose-50 text-rose-600 rounded-xl font-black text-sm">غير متوازن</span>
+            </div>
+            
+            {{ formset.management_form }}
+            <table class="w-full text-right border-collapse" id="items-table">
+                <thead>
+                    <tr class="text-gray-500 text-xs font-bold border-b uppercase">
+                        <th class="p-4 w-1/3">الحساب</th>
+                        <th class="p-4">مدين</th>
+                        <th class="p-4">دائن</th>
+                        <th class="p-4">البيان/مركز التكلفة</th>
+                        <th class="p-4 w-10"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item_form in formset %}
+                    <tr class="item-row border-b hover:bg-gray-50 transition-colors">
+                        {{ item_form.id }}
+                        <td class="p-4">
+                            {{ item_form.account }}
+                            {% if item_form.account.errors %}
+                            <p class="text-rose-500 text-[10px] mt-1">{{ item_form.account.errors.0 }}</p>
+                            {% endif %}
+                        </td>
+                        <td class="p-4">
+                            {{ item_form.debit }}
+                        </td>
+                        <td class="p-4">
+                            {{ item_form.credit }}
+                        </td>
+                        <td class="p-4 space-y-2">
+                            {{ item_form.memo }}
+                            {{ item_form.cost_center }}
+                        </td>
+                        <td class="p-4">
+                            {% if formset.can_delete %}
+                            {{ item_form.DELETE }}
+                            <button type="button" class="delete-row p-2 text-gray-300 hover:text-rose-500 transition-colors">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot>
+                    <tr class="bg-gray-800 text-white font-black">
+                        <td class="p-4 text-left">الإجمالي</td>
+                        <td class="p-4" id="total-debit">0.00</td>
+                        <td class="p-4" id="total-credit">0.00</td>
+                        <td class="p-4" id="diff-cell">الفرق: 0.00</td>
+                        <td></td>
+                    </tr>
+                </tfoot>
+            </table>
+            
+            <div class="p-4 border-t">
+                <button type="button" id="add-item" class="flex items-center gap-2 text-blue-600 font-bold hover:text-blue-700 transition-colors">
+                    <i class="fas fa-plus-circle"></i>
+                    <span>إضافة سطر جديد</span>
+                </button>
+            </div>
+        </div>
+
+        <div class="flex gap-4">
+            <button type="submit" class="flex-1 bg-blue-600 text-white py-4 rounded-2xl font-black shadow-lg shadow-blue-100 hover:bg-blue-700 transition-all">
+                حفظ القيد كمسودة
+            </button>
+            <a href="{% url 'accounting:journal_entry_list' %}" class="px-8 py-4 bg-gray-100 text-gray-600 rounded-2xl font-black hover:bg-gray-200 transition-all">
+                إلغاء
+            </a>
+        </div>
+    </form>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const table = document.getElementById('items-table');
+    const totalDebitEl = document.getElementById('total-debit');
+    const totalCreditEl = document.getElementById('total-credit');
+    const diffCell = document.getElementById('diff-cell');
+    const badge = document.getElementById('balance-badge');
+    
+    function calculateTotals() {
+        let totalDebit = 0;
+        let totalCredit = 0;
+        
+        table.querySelectorAll('.item-row').forEach(row => {
+            if (row.style.display === 'none') return;
+            const debit = parseFloat(row.querySelector('input[name$="-debit"]').value) || 0;
+            const credit = parseFloat(row.querySelector('input[name$="-credit"]').value) || 0;
+            totalDebit += debit;
+            totalCredit += credit;
+        });
+        
+        totalDebitEl.textContent = totalDebit.toLocaleString(undefined, {minimumFractionDigits: 2});
+        totalCreditEl.textContent = totalCredit.toLocaleString(undefined, {minimumFractionDigits: 2});
+        
+        const diff = Math.abs(totalDebit - totalCredit);
+        diffCell.textContent = `الفرق: ${diff.toLocaleString(undefined, {minimumFractionDigits: 2})}`;
+        
+        if (diff < 0.01 && totalDebit > 0) {
+            badge.textContent = 'متوازن';
+            badge.className = 'px-4 py-2 bg-green-50 text-green-600 rounded-xl font-black text-sm';
+        } else {
+            badge.textContent = 'غير متوازن';
+            badge.className = 'px-4 py-2 bg-rose-50 text-rose-600 rounded-xl font-black text-sm';
+        }
+    }
+    
+    table.addEventListener('input', (e) => {
+        if (e.target.name.endsWith('-debit') || e.target.name.endsWith('-credit')) {
+            calculateTotals();
+        }
+    });
+    
+    // Add Row functionality
+    const addButton = document.getElementById('add-item');
+    const totalForms = document.getElementById('id_items-TOTAL_FORMS');
+    
+    addButton.addEventListener('click', () => {
+        const formNum = parseInt(totalForms.value);
+        const newRow = table.querySelector('.item-row').cloneNode(true);
+        
+        // Update names/ids
+        newRow.innerHTML = newRow.innerHTML.replace(/-0-/g, `-${formNum}-`);
+        
+        // Reset values
+        newRow.querySelectorAll('input, select').forEach(input => {
+            if (input.type !== 'hidden') input.value = '';
+            if (input.name.endsWith('-debit') || input.name.endsWith('-credit')) input.value = '0';
+        });
+        
+        table.querySelector('tbody').appendChild(newRow);
+        totalForms.value = formNum + 1;
+    });
+    
+    // Delete Row
+    table.addEventListener('click', (e) => {
+        if (e.target.closest('.delete-row')) {
+            const row = e.target.closest('.item-row');
+            const deleteInput = row.querySelector('input[name$="-DELETE"]');
+            if (deleteInput) {
+                deleteInput.checked = true;
+                row.style.display = 'none';
+                calculateTotals();
+            }
+        }
+    });
+    
+    calculateTotals();
+});
+</script>
+{% endblock %}

@@ -18,29 +18,38 @@ const InvoicePrint = React.forwardRef(({ invoice, settings }, ref) => {
   return (
     <div ref={ref} className="p-10 bg-white text-black font-sans print:p-5" dir="rtl">
       {/* Header */}
-      <div className="flex justify-between items-start border-b-2 border-gray-200 pb-6 mb-8">
-        <div className="flex gap-4">
-          {settings?.logo && (
-            <img src={settings.logo} alt="Logo" className="h-24 w-24 object-contain rounded-xl bg-gray-50 p-2" />
-          )}
-          <div>
-            <div className="text-3xl font-black text-blue-600 mb-1">{settings?.company_name || 'المؤسسة التجارية'}</div>
-            <div className="text-gray-600 text-sm space-y-1">
-              {settings?.address && <p className="flex items-center gap-2">{settings.address}</p>}
-              {settings?.phone && <p className="flex items-center gap-2">هاتف: {settings.phone}</p>}
-              {settings?.tax_number && <p className="flex items-center gap-2">الرقم الضريبي: {settings.tax_number}</p>}
+      {!settings?.hide_company_info && (
+        <div className="flex justify-between items-start border-b-2 border-gray-200 pb-6 mb-8">
+          <div className="flex gap-4">
+            {settings?.logo && (
+              <img src={settings.logo} alt="Logo" className="h-24 w-24 object-contain rounded-xl bg-gray-50 p-2" />
+            )}
+            <div>
+              <div className="text-3xl font-black text-blue-600 mb-1">{settings?.company_name || 'المؤسسة التجارية'}</div>
+              <div className="text-gray-600 text-sm space-y-1">
+                {settings?.address && <p className="flex items-center gap-2">{settings.address}</p>}
+                {settings?.phone && <p className="flex items-center gap-2">هاتف: {settings.phone}</p>}
+                {settings?.tax_number && <p className="flex items-center gap-2">الرقم الضريبي: {settings.tax_number}</p>}
+              </div>
+            </div>
+          </div>
+          <div className="text-left">
+            <h1 className="text-2xl font-bold text-gray-800 mb-2">{getTypeLabel(invoice.invoice_type)}</h1>
+            <div className="text-sm space-y-1">
+              <p><span className="font-bold">رقم الفاتورة:</span> {invoice.number}</p>
+              <p><span className="font-bold">التاريخ:</span> {new Date(invoice.date).toLocaleString('ar-EG')}</p>
+              <p><span className="font-bold">الحالة:</span> {invoice.is_posted ? 'مرحلة' : 'مسودة'}</p>
             </div>
           </div>
         </div>
-        <div className="text-left">
-          <h1 className="text-2xl font-bold text-gray-800 mb-2">{getTypeLabel(invoice.invoice_type)}</h1>
-          <div className="text-sm space-y-1">
-            <p><span className="font-bold">رقم الفاتورة:</span> {invoice.number}</p>
-            <p><span className="font-bold">التاريخ:</span> {new Date(invoice.date).toLocaleString('ar-EG')}</p>
-            <p><span className="font-bold">الحالة:</span> {invoice.is_posted ? 'مرحلة' : 'مسودة'}</p>
-          </div>
+      )}
+
+      {/* Invoice Header Text */}
+      {settings?.invoice_header_text && (
+        <div className="mb-6 p-4 bg-blue-50 rounded-xl text-blue-800 text-sm border border-blue-100 whitespace-pre-wrap">
+          {settings.invoice_header_text}
         </div>
-      </div>
+      )}
 
       {/* Contact Info */}
       <div className="grid grid-cols-2 gap-8 mb-8 bg-gray-50 p-4 rounded-xl">
@@ -130,8 +139,29 @@ const InvoicePrint = React.forwardRef(({ invoice, settings }, ref) => {
             <span className="text-gray-500">المتبقي:</span>
             <span className="font-bold text-rose-600">{parseFloat(invoice.remaining_amount).toLocaleString()}</span>
           </div>
+          {settings?.show_previous_balance && (
+            <div className="flex justify-between text-sm border-t border-gray-100 pt-3">
+              <span className="text-gray-500">الرصيد السابق:</span>
+              <span className="font-bold">{parseFloat(invoice.previous_balance || 0).toLocaleString()}</span>
+            </div>
+          )}
+          {settings?.show_previous_balance && (
+            <div className="flex justify-between text-sm border-t-2 border-gray-200 pt-3">
+              <span className="font-bold text-gray-800">إجمالي الرصيد:</span>
+              <span className="font-black text-blue-600">
+                {parseFloat((parseFloat(invoice.remaining_amount) || 0) + (parseFloat(invoice.previous_balance) || 0)).toLocaleString()}
+              </span>
+            </div>
+          )}
         </div>
       </div>
+
+      {/* Footer Text */}
+      {settings?.invoice_footer_text && (
+        <div className="mt-8 p-4 bg-gray-50 rounded-xl text-gray-600 text-sm text-center border border-gray-100 whitespace-pre-wrap">
+          {settings.invoice_footer_text}
+        </div>
+      )}
 
       {/* Footer */}
       <div className="mt-16 pt-8 border-t border-gray-100 grid grid-cols-3 gap-8 text-center">

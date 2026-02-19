@@ -145,7 +145,7 @@
                 <p class="register-subtitle">أدخل بياناتك لإنشاء حساب جديد في النظام</p>
             </div>
             <div class="register-body">
-                <form method="post" class="register-form" action="{% url 'register' %}">
+                <form method="post" class="register-form" action="{% url 'users:register' %}">
                     {% csrf_token %}
                     
                     {% if error_message %}
@@ -191,7 +191,7 @@
                 </form>
             </div>
             <div class="register-footer">
-                لديك حساب بالفعل؟ <a href="{% url 'login' %}">تسجيل الدخول</a>
+                لديك حساب بالفعل؟ <a href="{% url 'users:login' %}">تسجيل الدخول</a>
             </div>
         </div>
     </div>

@@ -67,7 +67,7 @@ const Settings = () => {
     setSaving(true);
     try {
       const promises = [
-        api.put(`/core/api/system-settings/${settings.id}/`, settings)
+        api.put('/core/api/system-settings/current/', settings)
       ];
 
       if (company.id) {
@@ -215,6 +215,7 @@ const Settings = () => {
                 >
                   <option value="increase_quantity">زيادة الكمية تلقائياً</option>
                   <option value="allow_duplicate">السماح بالتكرار كبند منفصل</option>
+                  <option value="prevent_duplicate">منع تكرار الصنف في الفاتورة</option>
                 </select>
               </div>
             </div>
@@ -247,6 +248,15 @@ const Settings = () => {
                 />
                 <span className="text-gray-700 font-medium group-hover:text-blue-600 transition-colors">تنبيه عند البيع بأقل من سعر البيع</span>
               </label>
+              <label className="flex items-center gap-3 cursor-pointer group">
+                <input 
+                  type="checkbox" 
+                  checked={settings.alert_below_purchase_price}
+                  onChange={(e) => handleChange('alert_below_purchase_price', e.target.checked)}
+                  className="w-5 h-5 rounded-lg border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-gray-700 font-medium group-hover:text-blue-600 transition-colors">تنبيه عند البيع بأقل من سعر التكلفة (الشراء)</span>
+              </label>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -258,7 +268,7 @@ const Settings = () => {
                   className="w-full bg-gray-50 border-none rounded-2xl px-4 py-3 focus:ring-2 ring-blue-500 font-medium"
                 >
                   <option value="">اختر عميل...</option>
-                  {contacts.filter(c => c.contact_type === 'customer').map(c => (
+                  {contacts.filter(c => c.contact_type === 'customer' || c.contact_type === 'both').map(c => (
                     <option key={c.id} value={c.id}>{c.name}</option>
                   ))}
                 </select>
@@ -271,7 +281,7 @@ const Settings = () => {
                   className="w-full bg-gray-50 border-none rounded-2xl px-4 py-3 focus:ring-2 ring-blue-500 font-medium"
                 >
                   <option value="">اختر مورد...</option>
-                  {contacts.filter(c => c.contact_type === 'supplier').map(c => (
+                  {contacts.filter(c => c.contact_type === 'supplier' || c.contact_type === 'both').map(c => (
                     <option key={c.id} value={c.id}>{c.name}</option>
                   ))}
                 </select>
@@ -457,6 +467,151 @@ const Settings = () => {
                     <option key={a.id} value={a.id}>{a.code} - {a.name}</option>
                   ))}
                 </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-gray-600 px-1">حساب مرتجعات المبيعات</label>
+                <select 
+                  value={settings.sales_return_account || ''}
+                  onChange={(e) => handleChange('sales_return_account', e.target.value)}
+                  className="w-full bg-gray-50 border-none rounded-2xl px-4 py-2 text-sm focus:ring-2 ring-blue-500 font-medium"
+                >
+                  <option value="">اختر حساب...</option>
+                  {accounts.map(a => (
+                    <option key={a.id} value={a.id}>{a.code} - {a.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-gray-600 px-1">حساب مرتجعات المشتريات</label>
+                <select 
+                  value={settings.purchase_returns_account || ''}
+                  onChange={(e) => handleChange('purchase_returns_account', e.target.value)}
+                  className="w-full bg-gray-50 border-none rounded-2xl px-4 py-2 text-sm focus:ring-2 ring-blue-500 font-medium"
+                >
+                  <option value="">اختر حساب...</option>
+                  {accounts.map(a => (
+                    <option key={a.id} value={a.id}>{a.code} - {a.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-gray-600 px-1">حساب الخصم المسموح به</label>
+                <select 
+                  value={settings.default_discount_allowed_account || ''}
+                  onChange={(e) => handleChange('default_discount_allowed_account', e.target.value)}
+                  className="w-full bg-gray-50 border-none rounded-2xl px-4 py-2 text-sm focus:ring-2 ring-blue-500 font-medium"
+                >
+                  <option value="">اختر حساب...</option>
+                  {accounts.map(a => (
+                    <option key={a.id} value={a.id}>{a.code} - {a.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-gray-600 px-1">حساب الخصم المكتسب</label>
+                <select 
+                  value={settings.default_discount_earned_account || ''}
+                  onChange={(e) => handleChange('default_discount_earned_account', e.target.value)}
+                  className="w-full bg-gray-50 border-none rounded-2xl px-4 py-2 text-sm focus:ring-2 ring-blue-500 font-medium"
+                >
+                  <option value="">اختر حساب...</option>
+                  {accounts.map(a => (
+                    <option key={a.id} value={a.id}>{a.code} - {a.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-gray-600 px-1">حساب تكلفة البضاعة المباعة</label>
+                <select 
+                  value={settings.cogs_account || ''}
+                  onChange={(e) => handleChange('cogs_account', e.target.value)}
+                  className="w-full bg-gray-50 border-none rounded-2xl px-4 py-2 text-sm focus:ring-2 ring-blue-500 font-medium"
+                >
+                  <option value="">اختر حساب...</option>
+                  {accounts.map(a => (
+                    <option key={a.id} value={a.id}>{a.code} - {a.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-gray-600 px-1">حساب المخزون العام</label>
+                <select 
+                  value={settings.inventory_account || ''}
+                  onChange={(e) => handleChange('inventory_account', e.target.value)}
+                  className="w-full bg-gray-50 border-none rounded-2xl px-4 py-2 text-sm focus:ring-2 ring-blue-500 font-medium"
+                >
+                  <option value="">اختر حساب...</option>
+                  {accounts.map(a => (
+                    <option key={a.id} value={a.id}>{a.code} - {a.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-gray-600 px-1">حساب التالف</label>
+                <select 
+                  value={settings.damaged_account || ''}
+                  onChange={(e) => handleChange('damaged_account', e.target.value)}
+                  className="w-full bg-gray-50 border-none rounded-2xl px-4 py-2 text-sm focus:ring-2 ring-blue-500 font-medium"
+                >
+                  <option value="">اختر حساب...</option>
+                  {accounts.map(a => (
+                    <option key={a.id} value={a.id}>{a.code} - {a.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="space-y-3 pt-2">
+              <h3 className="font-bold text-gray-700 text-sm border-b pb-1">خيارات توزيع البنود ومراكز التكلفة</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <label className="flex items-center gap-3 cursor-pointer group">
+                  <input 
+                    type="checkbox" 
+                    checked={settings.per_item_account_in_invoices}
+                    onChange={(e) => handleChange('per_item_account_in_invoices', e.target.checked)}
+                    className="w-5 h-5 rounded-lg border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-gray-700 font-medium group-hover:text-blue-600 transition-colors text-xs">تحديد حساب لكل بند في المبيعات</span>
+                </label>
+                <label className="flex items-center gap-3 cursor-pointer group">
+                  <input 
+                    type="checkbox" 
+                    checked={settings.per_item_account_in_purchases}
+                    onChange={(e) => handleChange('per_item_account_in_purchases', e.target.checked)}
+                    className="w-5 h-5 rounded-lg border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-gray-700 font-medium group-hover:text-blue-600 transition-colors text-xs">تحديد حساب لكل بند في المشتريات</span>
+                </label>
+                <label className="flex items-center gap-3 cursor-pointer group">
+                  <input 
+                    type="checkbox" 
+                    checked={settings.distribute_cost_center_per_item_in_invoices}
+                    onChange={(e) => handleChange('distribute_cost_center_per_item_in_invoices', e.target.checked)}
+                    className="w-5 h-5 rounded-lg border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-gray-700 font-medium group-hover:text-blue-600 transition-colors text-xs">توزيع مركز التكلفة لكل بند في المبيعات</span>
+                </label>
+                <label className="flex items-center gap-3 cursor-pointer group">
+                  <input 
+                    type="checkbox" 
+                    checked={settings.distribute_cost_center_per_item_in_purchases}
+                    onChange={(e) => handleChange('distribute_cost_center_per_item_in_purchases', e.target.checked)}
+                    className="w-5 h-5 rounded-lg border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-gray-700 font-medium group-hover:text-blue-600 transition-colors text-xs">توزيع مركز التكلفة لكل بند في المشتريات</span>
+                </label>
               </div>
             </div>
           </div>

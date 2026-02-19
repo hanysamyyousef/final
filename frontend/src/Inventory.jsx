@@ -12,7 +12,8 @@ import {
   MoreVertical,
   X,
   Save,
-  Trash2
+  Trash2,
+  AlertTriangle
 } from 'lucide-react';
 
 const Inventory = () => {
@@ -23,6 +24,38 @@ const Inventory = () => {
   const [activeTab, setActiveTab] = useState('stores');
   const [isStoreModalOpen, setIsStoreModalOpen] = useState(false);
   const [isSafeModalOpen, setIsSafeModalOpen] = useState(false);
+  const [isDirty, setIsDirty] = useState(false);
+  const [showExitConfirm, setShowExitConfirm] = useState(false);
+
+  const markDirty = () => setIsDirty(true);
+
+  const handleSafeCloseModal = () => {
+    if (isDirty) {
+      setShowExitConfirm(true);
+    } else {
+      setIsStoreModalOpen(false);
+      setIsSafeModalOpen(false);
+    }
+  };
+
+  const confirmExit = () => {
+    setIsDirty(false);
+    setShowExitConfirm(false);
+    setIsStoreModalOpen(false);
+    setIsSafeModalOpen(false);
+  };
+
+  // Handle browser back/close
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      if (isDirty) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [isDirty]);
   
   const [storeFormData, setStoreFormData] = useState({
     name: '',
@@ -64,6 +97,7 @@ const Inventory = () => {
     e.preventDefault();
     try {
       await api.post('/api/stores/', storeFormData);
+      setIsDirty(false);
       setIsStoreModalOpen(false);
       setStoreFormData({ name: '', branch: '', address: '', keeper: '', notes: '' });
       fetchData();
@@ -80,6 +114,7 @@ const Inventory = () => {
         ...safeFormData,
         current_balance: safeFormData.initial_balance // Initialize current balance
       });
+      setIsDirty(false);
       setIsSafeModalOpen(false);
       setSafeFormData({ name: '', branch: '', initial_balance: 0 });
       fetchData();
@@ -127,7 +162,14 @@ const Inventory = () => {
           <p className="text-gray-500">إدارة مواقع التخزين والسيولة المالية</p>
         </div>
         <button 
-          onClick={() => activeTab === 'stores' ? setIsStoreModalOpen(true) : setIsSafeModalOpen(true)}
+          onClick={() => {
+            setIsDirty(false);
+            if (activeTab === 'stores') {
+              setIsStoreModalOpen(true);
+            } else {
+              setIsSafeModalOpen(true);
+            }
+          }}
           className="bg-blue-600 text-white px-4 py-2 rounded-xl flex items-center gap-2 hover:bg-blue-700 transition shadow-lg shadow-blue-200"
         >
           <Plus size={20} />
@@ -232,11 +274,11 @@ const Inventory = () => {
       {/* Store Modal */}
       {isStoreModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="fixed inset-0 bg-gray-900/50 backdrop-blur-sm" onClick={() => setIsStoreModalOpen(false)}></div>
+          <div className="fixed inset-0 bg-gray-900/50 backdrop-blur-sm" onClick={handleSafeCloseModal}></div>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg z-10 overflow-hidden animate-in fade-in zoom-in duration-200">
             <div className="flex items-center justify-between p-6 border-b border-gray-100">
               <h2 className="text-xl font-bold text-gray-800">إضافة مخزن جديد</h2>
-              <button onClick={() => setIsStoreModalOpen(false)} className="text-gray-400 hover:text-gray-600">
+              <button onClick={handleSafeCloseModal} className="text-gray-400 hover:text-gray-600">
                 <X size={24} />
               </button>
             </div>
@@ -248,7 +290,10 @@ const Inventory = () => {
                   required
                   className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition"
                   value={storeFormData.name}
-                  onChange={(e) => setStoreFormData({...storeFormData, name: e.target.value})}
+                  onChange={(e) => {
+                    setStoreFormData({...storeFormData, name: e.target.value});
+                    markDirty();
+                  }}
                 />
               </div>
               <div>
@@ -257,7 +302,10 @@ const Inventory = () => {
                   required
                   className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition"
                   value={storeFormData.branch}
-                  onChange={(e) => setStoreFormData({...storeFormData, branch: e.target.value})}
+                  onChange={(e) => {
+                    setStoreFormData({...storeFormData, branch: e.target.value});
+                    markDirty();
+                  }}
                 >
                   <option value="">اختر الفرع</option>
                   {branches.map(branch => (
@@ -271,7 +319,10 @@ const Inventory = () => {
                   type="text"
                   className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition"
                   value={storeFormData.keeper}
-                  onChange={(e) => setStoreFormData({...storeFormData, keeper: e.target.value})}
+                  onChange={(e) => {
+                    setStoreFormData({...storeFormData, keeper: e.target.value});
+                    markDirty();
+                  }}
                 />
               </div>
               <div>
@@ -280,7 +331,10 @@ const Inventory = () => {
                   type="text"
                   className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition"
                   value={storeFormData.address}
-                  onChange={(e) => setStoreFormData({...storeFormData, address: e.target.value})}
+                  onChange={(e) => {
+                    setStoreFormData({...storeFormData, address: e.target.value});
+                    markDirty();
+                  }}
                 />
               </div>
               <div className="flex gap-3 mt-6">
@@ -288,7 +342,7 @@ const Inventory = () => {
                   <Save size={20} />
                   حفظ المخزن
                 </button>
-                <button type="button" onClick={() => setIsStoreModalOpen(false)} className="flex-1 bg-gray-100 text-gray-600 py-3 rounded-xl font-bold hover:bg-gray-200 transition">
+                <button type="button" onClick={handleSafeCloseModal} className="flex-1 bg-gray-100 text-gray-600 py-3 rounded-xl font-bold hover:bg-gray-200 transition">
                   إلغاء
                 </button>
               </div>
@@ -300,11 +354,11 @@ const Inventory = () => {
       {/* Safe Modal */}
       {isSafeModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="fixed inset-0 bg-gray-900/50 backdrop-blur-sm" onClick={() => setIsSafeModalOpen(false)}></div>
+          <div className="fixed inset-0 bg-gray-900/50 backdrop-blur-sm" onClick={handleSafeCloseModal}></div>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg z-10 overflow-hidden animate-in fade-in zoom-in duration-200">
             <div className="flex items-center justify-between p-6 border-b border-gray-100">
               <h2 className="text-xl font-bold text-gray-800">إضافة خزنة جديدة</h2>
-              <button onClick={() => setIsSafeModalOpen(false)} className="text-gray-400 hover:text-gray-600">
+              <button onClick={handleSafeCloseModal} className="text-gray-400 hover:text-gray-600">
                 <X size={24} />
               </button>
             </div>
@@ -316,7 +370,10 @@ const Inventory = () => {
                   required
                   className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition"
                   value={safeFormData.name}
-                  onChange={(e) => setSafeFormData({...safeFormData, name: e.target.value})}
+                  onChange={(e) => {
+                    setSafeFormData({...safeFormData, name: e.target.value});
+                    markDirty();
+                  }}
                 />
               </div>
               <div>
@@ -325,7 +382,10 @@ const Inventory = () => {
                   required
                   className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition"
                   value={safeFormData.branch}
-                  onChange={(e) => setSafeFormData({...safeFormData, branch: e.target.value})}
+                  onChange={(e) => {
+                    setSafeFormData({...safeFormData, branch: e.target.value});
+                    markDirty();
+                  }}
                 >
                   <option value="">اختر الفرع</option>
                   {branches.map(branch => (
@@ -339,19 +399,53 @@ const Inventory = () => {
                   type="number"
                   className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition"
                   value={safeFormData.initial_balance}
-                  onChange={(e) => setSafeFormData({...safeFormData, initial_balance: e.target.value})}
+                  onChange={(e) => {
+                    setSafeFormData({...safeFormData, initial_balance: e.target.value});
+                    markDirty();
+                  }}
                 />
               </div>
               <div className="flex gap-3 mt-6">
                 <button type="submit" className="flex-1 bg-green-600 text-white py-3 rounded-xl font-bold hover:bg-green-700 transition flex items-center justify-center gap-2">
-                  <Save size={20} />
+                  <Save size="20" />
                   حفظ الخزنة
                 </button>
-                <button type="button" onClick={() => setIsSafeModalOpen(false)} className="flex-1 bg-gray-100 text-gray-600 py-3 rounded-xl font-bold hover:bg-gray-200 transition">
+                <button type="button" onClick={handleSafeCloseModal} className="flex-1 bg-gray-100 text-gray-600 py-3 rounded-xl font-bold hover:bg-gray-200 transition">
                   إلغاء
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Exit Confirmation Modal */}
+      {showExitConfirm && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-white rounded-[2rem] w-full max-w-md shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div className="p-8 text-center">
+              <div className="w-20 h-20 bg-amber-50 rounded-full flex items-center justify-center mx-auto mb-6">
+                <AlertTriangle size={40} className="text-amber-500" />
+              </div>
+              <h3 className="text-2xl font-black text-gray-900 mb-4">تنبيه: تغييرات غير محفوظة</h3>
+              <p className="text-gray-600 font-bold mb-8 leading-relaxed">
+                لديك تغييرات لم يتم حفظها. هل أنت متأكد من رغبتك في الخروج؟ سيتم فقدان جميع التغييرات.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={confirmExit}
+                  className="flex-1 bg-red-600 hover:bg-red-700 text-white py-4 rounded-2xl font-black transition-all"
+                >
+                  خروج بدون حفظ
+                </button>
+                <button
+                  onClick={() => setShowExitConfirm(false)}
+                  className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-600 py-4 rounded-2xl font-black transition-all"
+                >
+                  البقاء
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

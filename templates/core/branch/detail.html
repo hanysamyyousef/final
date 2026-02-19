@@ -7,17 +7,17 @@
     <div class="col-md-8">
         <h2 class="mb-0">{{ branch.name }}</h2>
         <p class="text-muted">
-            <a href="{% url 'company_detail' branch.company.pk %}">{{ branch.company.name }}</a>
+            <a href="{% url 'core:company_detail' branch.company.pk %}">{{ branch.company.name }}</a>
         </p>
     </div>
     <div class="col-md-4 text-end">
-        <a href="{% url 'branch_edit' branch.pk %}" class="btn btn-warning">
+        <a href="{% url 'core:branch_edit' branch.pk %}" class="btn btn-warning">
             <i class="fas fa-edit"></i> تعديل
         </a>
-        <a href="{% url 'branch_delete' branch.pk %}" class="btn btn-danger">
+        <a href="{% url 'core:branch_delete' branch.pk %}" class="btn btn-danger">
             <i class="fas fa-trash"></i> حذف
         </a>
-        <a href="{% url 'branch_list' %}" class="btn btn-secondary">
+        <a href="{% url 'core:branch_list' %}" class="btn btn-secondary">
             <i class="fas fa-arrow-right"></i> العودة للقائمة
         </a>
     </div>
@@ -39,7 +39,7 @@
                         <tr>
                             <th>الشركة</th>
                             <td>
-                                <a href="{% url 'company_detail' branch.company.pk %}">
+                                <a href="{% url 'core:company_detail' branch.company.pk %}">
                                     {{ branch.company.name }}
                                 </a>
                             </td>
@@ -66,7 +66,7 @@
         <div class="card shadow mb-4">
             <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
                 <h5 class="card-title mb-0">المخازن</h5>
-                <a href="{% url 'store_add' %}" class="btn btn-light btn-sm">
+                <a href="{% url 'core:store_add' %}" class="btn btn-light btn-sm">
                     <i class="fas fa-plus-circle"></i> إضافة مخزن جديد
                 </a>
             </div>
@@ -92,13 +92,13 @@
                                         <td>{{ store.keeper|default:"-" }}</td>
                                         <td>
                                             <div class="btn-group">
-                                                <a href="{% url 'store_detail' store.pk %}" class="btn btn-sm btn-info">
+                                                <a href="{% url 'core:store_detail' store.pk %}" class="btn btn-sm btn-info">
                                                     <i class="fas fa-eye"></i>
                                                 </a>
-                                                <a href="{% url 'store_edit' store.pk %}" class="btn btn-sm btn-warning">
+                                                <a href="{% url 'core:store_edit' store.pk %}" class="btn btn-sm btn-warning">
                                                     <i class="fas fa-edit"></i>
                                                 </a>
-                                                <a href="{% url 'store_delete' store.pk %}" class="btn btn-sm btn-danger">
+                                                <a href="{% url 'core:store_delete' store.pk %}" class="btn btn-sm btn-danger">
                                                     <i class="fas fa-trash"></i>
                                                 </a>
                                             </div>
@@ -110,7 +110,7 @@
                     </div>
                 {% else %}
                     <div class="alert alert-info">
-                        لا توجد مخازن مسجلة لهذا الفرع. <a href="{% url 'store_add' %}">أضف مخزن جديد</a>
+                        لا توجد مخازن مسجلة لهذا الفرع. <a href="{% url 'core:store_add' %}">أضف مخزن جديد</a>
                     </div>
                 {% endif %}
             </div>
@@ -119,7 +119,7 @@
         <div class="card shadow">
             <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
                 <h5 class="card-title mb-0">الخزن</h5>
-                <a href="{% url 'safe_add' %}" class="btn btn-light btn-sm">
+                <a href="{% url 'core:safe_add' %}" class="btn btn-light btn-sm">
                     <i class="fas fa-plus-circle"></i> إضافة خزنة جديدة
                 </a>
             </div>
@@ -145,13 +145,13 @@
                                         <td>{{ safe.current_balance }}</td>
                                         <td>
                                             <div class="btn-group">
-                                                <a href="{% url 'safe_detail' safe.pk %}" class="btn btn-sm btn-info">
+                                                <a href="{% url 'core:safe_detail' safe.pk %}" class="btn btn-sm btn-info">
                                                     <i class="fas fa-eye"></i>
                                                 </a>
-                                                <a href="{% url 'safe_edit' safe.pk %}" class="btn btn-sm btn-warning">
+                                                <a href="{% url 'core:safe_edit' safe.pk %}" class="btn btn-sm btn-warning">
                                                     <i class="fas fa-edit"></i>
                                                 </a>
-                                                <a href="{% url 'safe_delete' safe.pk %}" class="btn btn-sm btn-danger">
+                                                <a href="{% url 'core:safe_delete' safe.pk %}" class="btn btn-sm btn-danger">
                                                     <i class="fas fa-trash"></i>
                                                 </a>
                                             </div>
@@ -163,7 +163,7 @@
                     </div>
                 {% else %}
                     <div class="alert alert-info">
-                        لا توجد خزن مسجلة لهذا الفرع. <a href="{% url 'safe_add' %}">أضف خزنة جديدة</a>
+                        لا توجد خزن مسجلة لهذا الفرع. <a href="{% url 'core:safe_add' %}">أضف خزنة جديدة</a>
                     </div>
                 {% endif %}
             </div>

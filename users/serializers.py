@@ -13,7 +13,7 @@ class ProfileSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Profile
-        fields = ['avatar', 'phone', 'address', 'role', 'role_display', 'email_notifications', 'browser_notifications']
+        fields = ['avatar', 'phone', 'address', 'role', 'role_display', 'email_notifications', 'browser_notifications', 'allowed_branches', 'manage_all_branches']
 
 class UserSerializer(serializers.ModelSerializer):
     profile = ProfileSerializer(required=False)
@@ -35,9 +35,16 @@ class UserSerializer(serializers.ModelSerializer):
         # Profile is usually created by middleware/signal, but let's ensure it has the data
         profile, created = Profile.objects.get_or_create(user=user)
         role = profile_data.get('role', 'employee')
+        
+        # Handle ManyToMany fields and other fields separately
+        allowed_branches = profile_data.pop('allowed_branches', None)
+        
         for attr, value in profile_data.items():
             setattr(profile, attr, value)
         profile.save()
+        
+        if allowed_branches is not None:
+            profile.allowed_branches.set(allowed_branches)
         
         # Assign role in django-role-permissions
         assign_role(user, role)
@@ -64,8 +71,14 @@ class UserSerializer(serializers.ModelSerializer):
                 remove_role(instance, role)
             assign_role(instance, new_role)
             
+        # Handle ManyToMany fields and other fields separately
+        allowed_branches = profile_data.pop('allowed_branches', None)
+        
         for attr, value in profile_data.items():
             setattr(profile, attr, value)
         profile.save()
+        
+        if allowed_branches is not None:
+            profile.allowed_branches.set(allowed_branches)
         
         return instance

@@ -216,6 +216,29 @@ const Accounting = () => {
     return types[type] || type;
   };
 
+  const getAccountNature = (type) => {
+    const debitTypes = ['asset', 'expense'];
+    const creditTypes = ['liability', 'equity', 'income'];
+    
+    if (debitTypes.includes(type)) return 'مدين';
+    if (creditTypes.includes(type)) return 'دائن';
+    return '';
+  };
+
+  const getBalanceStatus = (account) => {
+    const balance = parseFloat(account.balance);
+    const type = account.account_type;
+    const debitTypes = ['asset', 'expense'];
+    
+    if (balance === 0) return '';
+    
+    if (debitTypes.includes(type)) {
+      return balance > 0 ? 'مدين' : 'دائن';
+    } else {
+      return balance > 0 ? 'دائن' : 'مدين';
+    }
+  };
+
   const AccountRow = ({ account, level = 0 }) => {
     const hasChildren = account.children && account.children.length > 0;
     const isExpanded = expandedAccounts[account.id];
@@ -278,11 +301,21 @@ const Accounting = () => {
               {getAccountTypeLabel(account.account_type)}
             </span>
           </td>
-          <td className="p-4 text-left">
-            <span className={`font-black ${parseFloat(account.balance) < 0 ? 'text-rose-600' : 'text-gray-900'}`}>
-              {Math.abs(account.balance).toLocaleString('ar-EG', { minimumFractionDigits: 2 })}
-              <span className="text-[10px] text-gray-400 font-medium mr-1">ج.م</span>
+          <td className="p-4 text-center">
+            <span className={`text-[10px] font-bold px-2 py-1 rounded-md bg-gray-100 text-gray-600`}>
+              {getAccountNature(account.account_type)}
             </span>
+          </td>
+          <td className="p-4 text-left">
+            <div className="flex flex-col items-start">
+              <span className={`font-black ${parseFloat(account.balance) < 0 ? 'text-rose-600' : 'text-gray-900'}`}>
+                {Math.abs(account.balance).toLocaleString('ar-EG', { minimumFractionDigits: 2 })}
+                <span className="text-[10px] text-gray-400 font-medium mr-1">ج.م</span>
+              </span>
+              <span className={`text-[9px] font-bold ${getBalanceStatus(account) === 'مدين' ? 'text-blue-500' : 'text-rose-500'}`}>
+                {getBalanceStatus(account)}
+              </span>
+            </div>
           </td>
           <td className="p-4 text-center">
             <span className={`px-2 py-1 rounded-lg text-[10px] font-bold ${account.is_selectable ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-400'}`}>
@@ -445,9 +478,10 @@ const Accounting = () => {
               <th className="p-4 font-bold text-gray-600 text-sm min-w-[200px]">كود الحساب</th>
               <th className="p-4 font-bold text-gray-600 text-sm min-w-[250px]">اسم الحساب</th>
               <th className="p-4 font-bold text-gray-600 text-sm text-center">النوع</th>
+              <th className="p-4 font-bold text-gray-600 text-sm text-center">طبيعة الحساب</th>
               <th className="p-4 font-bold text-gray-600 text-sm text-left">الرصيد</th>
               <th className="p-4 font-bold text-gray-600 text-sm text-center">الحالة</th>
-              <th className="p-4"></th>
+              <th className="p-4 font-bold text-gray-600 text-sm text-left">إجراءات</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">

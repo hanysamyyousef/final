@@ -12,21 +12,21 @@
                     <h5 class="card-title mb-0">تفاصيل المصروف #{{ expense.number }}</h5>
                     <div class="btn-group" role="group">
                         {% if not expense.is_posted %}
-                        <a href="{% url 'expense_edit' expense.id %}" class="btn btn-info">
+                        <a href="{% url 'finances:expense_edit' expense.id %}" class="btn btn-info">
                             <i class="fas fa-edit"></i> تعديل
                         </a>
-                        <a href="{% url 'expense_delete' expense.id %}" class="btn btn-danger">
+                        <a href="{% url 'finances:expense_delete' expense.id %}" class="btn btn-danger">
                             <i class="fas fa-trash"></i> حذف
                         </a>
-                        <a href="{% url 'expense_post' expense.id %}" class="btn btn-success">
+                        <a href="{% url 'finances:expense_post' expense.id %}" class="btn btn-success">
                             <i class="fas fa-check"></i> ترحيل
                         </a>
                         {% else %}
-                        <a href="{% url 'expense_unpost' expense.id %}" class="btn btn-warning">
+                        <a href="{% url 'finances:expense_unpost' expense.id %}" class="btn btn-warning">
                             <i class="fas fa-undo"></i> إلغاء الترحيل
                         </a>
                         {% endif %}
-                        <a href="{% url 'expense_list' %}" class="btn btn-secondary">
+                        <a href="{% url 'finances:expense_list' %}" class="btn btn-secondary">
                             <i class="fas fa-arrow-left"></i> العودة
                         </a>
                     </div>

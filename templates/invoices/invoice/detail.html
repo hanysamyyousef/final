@@ -10,21 +10,21 @@
         <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
             <h5 class="mb-0">تفاصيل الفاتورة #{{ invoice.number }}</h5>
             <div>
-                <a href="{% url 'invoice_edit' invoice.id %}" class="btn btn-light btn-sm mx-1">
+                <a href="{% url 'invoices:invoice_edit' invoice.id %}" class="btn btn-light btn-sm mx-1">
                     <i class="fas fa-edit"></i> تعديل
                 </a>
-                <a href="{% url 'invoice_print' invoice.id %}" class="btn btn-light btn-sm mx-1" target="_blank">
+                <a href="{% url 'invoices:invoice_print' invoice.id %}" class="btn btn-light btn-sm mx-1" target="_blank">
                     <i class="fas fa-print"></i> طباعة
                 </a>
-                <a href="{% url 'invoice_delete' invoice.id %}" class="btn btn-danger btn-sm mx-1">
+                <a href="{% url 'invoices:invoice_delete' invoice.id %}" class="btn btn-danger btn-sm mx-1" onclick="return confirm('هل أنت متأكد من حذف هذه الفاتورة؟')">
                     <i class="fas fa-trash"></i> حذف
                 </a>
                 {% if not invoice.is_posted %}
-                <a href="{% url 'invoice_post' invoice.id %}" class="btn btn-success btn-sm mx-1">
-                    <i class="fas fa-check"></i> ترحيل
+                <a href="{% url 'invoices:invoice_post' invoice.id %}" class="btn btn-success btn-sm mx-1">
+                    <i class="fas fa-check-circle"></i> ترحيل
                 </a>
                 {% else %}
-                <a href="{% url 'invoice_unpost' invoice.id %}" class="btn btn-warning btn-sm mx-1">
+                <a href="{% url 'invoices:invoice_unpost' invoice.id %}" class="btn btn-warning btn-sm mx-1">
                     <i class="fas fa-undo"></i> إلغاء الترحيل
                 </a>
                 {% endif %}

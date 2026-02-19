@@ -66,7 +66,7 @@
                 </form>
 
                 <div class="text-center mt-3">
-                    <a href="{% url 'password_reset' %}">نسيت كلمة المرور؟</a>
+                    <a href="{% url 'users:password_reset' %}">نسيت كلمة المرور؟</a>
                 </div>
 
                 <div class="auth-divider">
@@ -74,19 +74,19 @@
                 </div>
 
                 <div class="social-login">
-                    <a href="{% url 'account_login' %}?next={% url 'home' %}&provider=google" class="social-btn google-btn">
+                    <a href="{% url 'account_login' %}?next={% url 'core:home' %}&provider=google" class="social-btn google-btn">
                         <i class="fab fa-google"></i>
                     </a>
-                    <a href="{% url 'account_login' %}?next={% url 'home' %}&provider=facebook" class="social-btn facebook-btn">
+                    <a href="{% url 'account_login' %}?next={% url 'core:home' %}&provider=facebook" class="social-btn facebook-btn">
                         <i class="fab fa-facebook-f"></i>
                     </a>
-                    <a href="{% url 'account_login' %}?next={% url 'home' %}&provider=twitter" class="social-btn twitter-btn">
+                    <a href="{% url 'account_login' %}?next={% url 'core:home' %}&provider=twitter" class="social-btn twitter-btn">
                         <i class="fab fa-twitter"></i>
                     </a>
                 </div>
             </div>
             <div class="auth-footer">
-                ليس لديك حساب؟ <a href="{% url 'register' %}">إنشاء حساب جديد</a>
+                ليس لديك حساب؟ <a href="{% url 'users:register' %}">إنشاء حساب جديد</a>
             </div>
         </div>
     </div>

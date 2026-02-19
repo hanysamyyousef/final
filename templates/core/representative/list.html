@@ -8,7 +8,7 @@
         <h2 class="mb-0">المناديب</h2>
     </div>
     <div class="col-md-4 text-end">
-        <a href="{% url 'representative_add' %}" class="btn btn-primary">
+        <a href="{% url 'core:representative_add' %}" class="btn btn-primary">
             <i class="fas fa-plus-circle"></i> إضافة مندوب جديد
         </a>
     </div>
@@ -41,13 +41,13 @@
                                 <td>{{ representative.commission_percentage }}%</td>
                                 <td>
                                     <div class="btn-group">
-                                        <a href="{% url 'representative_detail' representative.pk %}" class="btn btn-sm btn-info">
+                                        <a href="{% url 'core:representative_detail' representative.pk %}" class="btn btn-sm btn-info">
                                             <i class="fas fa-eye"></i>
                                         </a>
-                                        <a href="{% url 'representative_edit' representative.pk %}" class="btn btn-sm btn-warning">
+                                        <a href="{% url 'core:representative_edit' representative.pk %}" class="btn btn-sm btn-warning">
                                             <i class="fas fa-edit"></i>
                                         </a>
-                                        <a href="{% url 'representative_delete' representative.pk %}" class="btn btn-sm btn-danger">
+                                        <a href="{% url 'core:representative_delete' representative.pk %}" class="btn btn-sm btn-danger">
                                             <i class="fas fa-trash"></i>
                                         </a>
                                     </div>
@@ -59,7 +59,7 @@
             </div>
         {% else %}
             <div class="alert alert-info">
-                لا يوجد مناديب مسجلين حتى الآن. <a href="{% url 'representative_add' %}">أضف مندوب جديد</a>
+                لا يوجد مناديب مسجلين حتى الآن. <a href="{% url 'core:representative_add' %}">أضف مندوب جديد</a>
             </div>
         {% endif %}
     </div>

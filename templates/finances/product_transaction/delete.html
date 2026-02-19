@@ -31,12 +31,12 @@
                     </div>
                     
                     <form method="post">
-                        {% csrf_token %}
-                        <div class="d-flex justify-content-between">
-                            <a href="{% url 'product_transaction_detail' transaction.id %}" class="btn btn-secondary">إلغاء</a>
-                            <button type="submit" class="btn btn-danger">تأكيد الحذف</button>
-                        </div>
-                    </form>
+                            {% csrf_token %}
+                            <div class="d-flex justify-content-between">
+                                <a href="{% url 'finances:product_transaction_detail' transaction.id %}" class="btn btn-secondary">إلغاء</a>
+                                <button type="submit" class="btn btn-danger">تأكيد الحذف</button>
+                            </div>
+                        </form>
                 </div>
             </div>
         </div>

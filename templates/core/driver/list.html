@@ -8,7 +8,7 @@
         <h2 class="mb-0">السائقين</h2>
     </div>
     <div class="col-md-4 text-end">
-        <a href="{% url 'driver_add' %}" class="btn btn-primary">
+        <a href="{% url 'core:driver_add' %}" class="btn btn-primary">
             <i class="fas fa-plus-circle"></i> إضافة سائق جديد
         </a>
     </div>
@@ -41,13 +41,13 @@
                                 <td>{{ driver.license_number|default:"-" }}</td>
                                 <td>
                                     <div class="btn-group">
-                                        <a href="{% url 'driver_detail' driver.pk %}" class="btn btn-sm btn-info">
+                                        <a href="{% url 'core:driver_detail' driver.pk %}" class="btn btn-sm btn-info">
                                             <i class="fas fa-eye"></i>
                                         </a>
-                                        <a href="{% url 'driver_edit' driver.pk %}" class="btn btn-sm btn-warning">
+                                        <a href="{% url 'core:driver_edit' driver.pk %}" class="btn btn-sm btn-warning">
                                             <i class="fas fa-edit"></i>
                                         </a>
-                                        <a href="{% url 'driver_delete' driver.pk %}" class="btn btn-sm btn-danger">
+                                        <a href="{% url 'core:driver_delete' driver.pk %}" class="btn btn-sm btn-danger">
                                             <i class="fas fa-trash"></i>
                                         </a>
                                     </div>
@@ -59,7 +59,7 @@
             </div>
         {% else %}
             <div class="alert alert-info">
-                لا يوجد سائقين مسجلين حتى الآن. <a href="{% url 'driver_add' %}">أضف سائق جديد</a>
+                لا يوجد سائقين مسجلين حتى الآن. <a href="{% url 'core:driver_add' %}">أضف سائق جديد</a>
             </div>
         {% endif %}
     </div>

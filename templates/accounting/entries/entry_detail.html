@@ -1,0 +1,133 @@
+{% extends 'base.html' %}
+{% load i18n accounting_tags %}
+
+{% block content %}
+<div class="p-6 max-w-5xl mx-auto space-y-6">
+    <header class="flex justify-between items-start">
+        <div>
+            <a href="{% url 'accounting:journal_entry_list' %}" class="inline-flex items-center gap-2 text-gray-500 hover:text-blue-600 transition-colors mb-4">
+                <i class="fas fa-arrow-right"></i>
+                <span>العودة لقائمة القيود</span>
+            </a>
+            <div class="flex items-center gap-4">
+                <h1 class="text-3xl font-black text-gray-800">قيد رقم: {{ entry.entry_number }}</h1>
+                {% if entry.is_posted %}
+                <span class="px-4 py-1.5 bg-green-600 text-white rounded-xl font-black text-sm">مرحل</span>
+                {% else %}
+                <span class="px-4 py-1.5 bg-gray-200 text-gray-600 rounded-xl font-black text-sm">مسودة</span>
+                {% endif %}
+            </div>
+        </div>
+        
+        <div class="flex gap-3">
+            {% if not entry.is_posted %}
+            <form action="{% url 'accounting:journal_entry_post' entry.pk %}" method="post">
+                {% csrf_token %}
+                <button type="submit" class="bg-blue-600 text-white px-8 py-3 rounded-2xl font-black shadow-lg shadow-blue-100 hover:bg-blue-700 transition-all flex items-center gap-2">
+                    <i class="fas fa-check-double"></i>
+                    ترحيل القيد
+                </button>
+            </form>
+            {% else %}
+            <form action="{% url 'accounting:journal_entry_unpost' entry.pk %}" method="post">
+                {% csrf_token %}
+                <button type="submit" class="bg-rose-50 text-rose-600 px-8 py-3 rounded-2xl font-black hover:bg-rose-100 transition-all flex items-center gap-2">
+                    <i class="fas fa-undo"></i>
+                    إلغاء الترحيل
+                </button>
+            </form>
+            {% endif %}
+            <button onclick="window.print()" class="p-3 bg-gray-100 text-gray-600 rounded-2xl hover:bg-gray-200 transition-all">
+                <i class="fas fa-print"></i>
+            </button>
+        </div>
+    </header>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Main Info -->
+        <div class="lg:col-span-2 space-y-6">
+            <div class="bg-white rounded-[2.5rem] border border-gray-100 shadow-sm overflow-hidden">
+                <div class="p-6 bg-gray-50 border-b">
+                    <h3 class="font-black text-gray-700">بنود القيد</h3>
+                </div>
+                <table class="w-full text-right border-collapse">
+                    <thead>
+                        <tr class="text-gray-500 text-xs font-bold border-b uppercase">
+                            <th class="p-4">الحساب</th>
+                            <th class="p-4">مدين</th>
+                            <th class="p-4">دائن</th>
+                            <th class="p-4">البيان</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in entry.items.all %}
+                        <tr class="border-b hover:bg-gray-50 transition-colors">
+                            <td class="p-4">
+                                <div class="font-bold text-gray-900">{{ item.account.name }}</div>
+                                <div class="text-xs text-gray-400 font-mono">{{ item.account.code }}</div>
+                            </td>
+                            <td class="p-4 text-green-600 font-bold">
+                                {% if item.debit > 0 %}{{ item.debit|floatformat:2 }}{% else %}-{% endif %}
+                            </td>
+                            <td class="p-4 text-rose-600 font-bold">
+                                {% if item.credit > 0 %}{{ item.credit|floatformat:2 }}{% else %}-{% endif %}
+                            </td>
+                            <td class="p-4">
+                                <div class="text-sm text-gray-600">{{ item.memo|default:"-" }}</div>
+                                {% if item.cost_center %}
+                                <div class="text-[10px] text-blue-500 font-bold">مركز: {{ item.cost_center.name }}</div>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot>
+                        <tr class="bg-gray-800 text-white font-black">
+                            <td class="p-4">الإجمالي</td>
+                            <td class="p-4">{{ entry.items.all|sum_debit|floatformat:2 }}</td>
+                            <td class="p-4">{{ entry.items.all|sum_credit|floatformat:2 }}</td>
+                            <td></td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+
+            <div class="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm">
+                <h4 class="text-sm font-bold text-gray-400 mb-2">الوصف/البيان</h4>
+                <p class="text-gray-800">{{ entry.description|default:"لا يوجد وصف لهذا القيد" }}</p>
+            </div>
+        </div>
+
+        <!-- Sidebar Info -->
+        <div class="space-y-6">
+            <div class="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm space-y-4">
+                <div>
+                    <h4 class="text-xs font-bold text-gray-400 uppercase">تاريخ القيد</h4>
+                    <p class="font-black text-gray-800">{{ entry.date|date:"Y-m-d" }}</p>
+                    <p class="text-[10px] text-gray-400">{{ entry.date|date:"H:i" }}</p>
+                </div>
+                <div>
+                    <h4 class="text-xs font-bold text-gray-400 uppercase">المرجع</h4>
+                    <p class="font-black text-gray-800">{{ entry.reference|default:"-" }}</p>
+                </div>
+                <div class="pt-4 border-t">
+                    <h4 class="text-xs font-bold text-gray-400 uppercase">تاريخ الإنشاء</h4>
+                    <p class="text-sm text-gray-600">{{ entry.created_at|date:"Y-m-d H:i" }}</p>
+                </div>
+            </div>
+
+            {% if not entry.is_posted %}
+            <div class="p-6 bg-amber-50 rounded-[2.5rem] border border-amber-100">
+                <div class="flex items-center gap-3 text-amber-700 mb-2">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <h4 class="font-black">قيد غير مرحل</h4>
+                </div>
+                <p class="text-xs text-amber-600 leading-relaxed">
+                    هذا القيد لم يتم ترحيله بعد، وبالتالي لم يؤثر على أرصدة الحسابات أو التقارير المالية. يمكنك تعديله أو حذفه قبل الترحيل.
+                </p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
